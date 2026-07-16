@@ -1,0 +1,47 @@
+# Build directories
+build/
+build_release/
+build_asan/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
+# Compiled outputs
+*.o
+*.a
+*.so
+*.out
+routing_engine_benchmark
+
+# L1 FIX: Never commit compiled LaTeX PDFs.
+# pdflatex re-run after every edit creates a new binary diff that bloats
+# the git object store permanently. Every recruiter clone downloads full
+# PDF history. Build the PDF locally: cd docs && pdflatex write-up.tex (twice).
+docs/*.pdf
+docs/*.aux
+docs/*.log
+docs/*.toc
+docs/*.out
+docs/*.synctex.gz
+docs/*.fls
+docs/*.fdb_latexmk
+
+# GTFS data (large, not source code)
+data/
+*.zip
+
+# Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Sanitizer output
+*.asan
+*.ubsan
+
+# Benchmark output (generated — add results/ manually if you want them tracked)
+results/*.txt
+results/*.csv

@@ -1,0 +1,129 @@
+name: C++ CI — Namma Metro Routing Engine
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    name: Build & Test (Ubuntu 24.04, GCC-13)
+    runs-on: ubuntu-24.04
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Install system deps ────────────────────────────────────────────
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            gcc-13 \
+            g++-13 \
+            libgtest-dev \
+            valgrind \
+            python3
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+
+      # ── 3. Generate synthetic GTFS data ───────────────────────────────────
+      # CI FIX: Without real GTFS data the benchmark falls through to the
+      # synthetic 10-node graph hardcoded in main_bench.cpp. A green CI badge
+      # from a 10-node stub proves nothing about the parser or graph builder.
+      # Run the synthetic GTFS generator to exercise the full parsing pipeline.
+      - name: Generate synthetic GTFS test data
+        run: |
+          mkdir -p data
+          python3 scripts/generate_synthetic_gtfs.py data
+          echo "Generated GTFS files:"
+          ls -lh data/
+
+      # ── 4. Validate GTFS data completeness ───────────────────────────────
+      - name: Validate required GTFS files present
+        run: |
+          for f in agency.txt stops.txt routes.txt trips.txt stop_times.txt calendar.txt; do
+            if [ ! -f "data/$f" ]; then
+              echo "FATAL: Missing required GTFS file: data/$f"
+              exit 1
+            fi
+          done
+          echo "All required GTFS files present."
+
+      # ── 5. Cache CMake build artifacts ───────────────────────────────────
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: cmake-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}
+
+      # ── 6. Configure (Debug for sanitizers) ─────────────────────────────
+      - name: Configure CMake (Debug + ASan)
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -G Ninja
+
+      # ── 7. Build ──────────────────────────────────────────────────────────
+      - name: Build all targets
+        run: cmake --build build --parallel 4
+
+      # ── 8. Run tests ──────────────────────────────────────────────────────
+      - name: Run Google Test suite
+        working-directory: build
+        env:
+          ASAN_OPTIONS: detect_leaks=1:strict_string_checks=1
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: ctest --output-on-failure --timeout 60
+
+      # ── 9. FK-drop threshold check ────────────────────────────────────────
+      # CI FIX: Parser drops FK-orphaned rows with only a stderr warning. If
+      # 80% of stop_times are dropped, the graph is wrong but all tests still
+      # pass (synthetic fallback kicks in). Fail CI if drop rate exceeds 5%.
+      - name: Check GTFS FK-drop rate
+        run: |
+          python3 - <<'EOF'
+          import subprocess, sys, re
+          result = subprocess.run(
+              ["./build/routing_engine_benchmark", "./data"],
+              capture_output=True, text=True, timeout=30
+          )
+          stderr = result.stderr
+          rows_read   = int(re.search(r'Rows read.*?(\d+)', stderr or '0 0').group(1) if re.search(r'Rows read.*?(\d+)', stderr) else 0)
+          rows_fk     = int(re.search(r'FK.*?(\d+)',        stderr or '0 0').group(1) if re.search(r'FK.*?(\d+)',        stderr) else 0)
+          if rows_read > 0:
+              rate = rows_fk / rows_read
+              print(f"FK-drop rate: {rate:.1%} ({rows_fk}/{rows_read})")
+              if rate > 0.05:
+                  print(f"FATAL: FK-drop rate {rate:.1%} exceeds 5% threshold.")
+                  print("This means the synthetic GTFS generator produced orphaned FK references.")
+                  print("Fix generate_synthetic_gtfs.py to maintain referential integrity.")
+                  sys.exit(1)
+          else:
+              print("No rows_read stat found in output — skipping FK check.")
+          EOF
+
+      # ── 10. Release build check (no sanitizers, -O3) ─────────────────────
+      - name: Configure CMake (Release)
+        run: |
+          cmake -S . -B build_release \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_CXX_FLAGS="-march=x86-64-v3" \
+            -G Ninja
+
+      - name: Build release target
+        run: cmake --build build_release --target routing_engine_benchmark --parallel 4
+
+      # ── 11. Upload test results ────────────────────────────────────────────
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/Testing/

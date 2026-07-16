@@ -1,0 +1,11 @@
+# Keep shell scripts LF so they run on Linux/WSL even when edited on Windows.
+*.sh text eol=lf
+scripts/*.sh text eol=lf
+
+# Normalize source to LF in the repository.
+*.cpp text
+*.hpp text
+*.md  text
+*.tex text
+*.py  text
+*.yml text
