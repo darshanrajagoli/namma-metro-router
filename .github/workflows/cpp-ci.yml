@@ -89,23 +89,28 @@ jobs:
         run: |
           python3 - <<'EOF'
           import subprocess, sys, re
-          result = subprocess.run(
+          # FIX: read BOTH streams. print_stats() writes to stdout (std::printf),
+          # not stderr, so the previous stderr-only grep never matched and this
+          # check silently skipped on every run. Anchor on the exact stat labels.
+          r = subprocess.run(
               ["./build/routing_engine_benchmark", "./data"],
-              capture_output=True, text=True, timeout=30
+              capture_output=True, text=True, timeout=60
           )
-          stderr = result.stderr
-          rows_read   = int(re.search(r'Rows read.*?(\d+)', stderr or '0 0').group(1) if re.search(r'Rows read.*?(\d+)', stderr) else 0)
-          rows_fk     = int(re.search(r'FK.*?(\d+)',        stderr or '0 0').group(1) if re.search(r'FK.*?(\d+)',        stderr) else 0)
-          if rows_read > 0:
+          out = (r.stdout or "") + "\n" + (r.stderr or "")
+          def find(label):
+              m = re.search(label + r"\s*:?\s*(\d+)", out)
+              return int(m.group(1)) if m else None
+          rows_read = find(r"Rows read")
+          rows_fk   = find(r"Dropped \(bad FK\)")
+          if rows_read and rows_read > 0 and rows_fk is not None:
               rate = rows_fk / rows_read
               print(f"FK-drop rate: {rate:.1%} ({rows_fk}/{rows_read})")
               if rate > 0.05:
                   print(f"FATAL: FK-drop rate {rate:.1%} exceeds 5% threshold.")
-                  print("This means the synthetic GTFS generator produced orphaned FK references.")
-                  print("Fix generate_synthetic_gtfs.py to maintain referential integrity.")
+                  print("The synthetic GTFS generator produced orphaned FK references.")
                   sys.exit(1)
           else:
-              print("No rows_read stat found in output — skipping FK check.")
+              print("No parseable GTFS stats found in output — skipping FK check.")
           EOF
 
       # ── 10. Release build check (no sanitizers, -O3) ─────────────────────
