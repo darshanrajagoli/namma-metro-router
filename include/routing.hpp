@@ -18,8 +18,12 @@
  *   Graph G = (V, E) where V = transit stops, E = timetabled service legs.
  *   Edge weight: w(u, v, t) = arrival_time at v given departure at u at time t.
  *
- *   Objective: compute the full Pareto frontier of non-dominated (time, crowd)
- *   label pairs between a source node s and all reachable destinations.
+ *   Objective: compute the non-dominated (time, crowd) frontier between a source
+ *   node s and all reachable destinations. SCOPE NOTE: the engine expands one
+ *   composite-optimal departure per link (the lambda-minimizer among the next k
+ *   departures), so the returned frontier is the set of non-dominated trade-offs
+ *   ACROSS ROUTE CHOICES at a fixed lambda — not the full frontier over every
+ *   possible boarding on a multi-departure link. See tests/test_pareto_oracle.cpp.
  *
  *   Markowitz analogy:
  *     Scalarized objective: min E[travel_time] + λ·σ[crowd_weight]

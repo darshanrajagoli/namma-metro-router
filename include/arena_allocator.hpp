@@ -59,7 +59,7 @@
 
 namespace namma_metro {
 
-/// Default arena capacity: 65536 Label objects (~2 MB for a 32-byte Label).
+/// Default arena capacity: 65536 Label objects (~1 MB for the 16-byte Label).
 /// Namma Metro Purple+Green lines: ~500 nodes, ~50k labels per complex query.
 /// Increase to 1<<20 for exhaustive stress tests.
 static constexpr std::size_t ARENA_DEFAULT_CAPACITY = 1u << 16; // 65536

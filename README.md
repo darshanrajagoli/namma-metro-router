@@ -4,18 +4,23 @@
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-> **This project formulates time-dependent transit routing as a mean-variance
-> optimization problem analogous to Markowitz portfolio theory.** The bi-criteria
-> objective — minimizing both travel time and crowd exposure — is scalarized as
-> **min E[travel_time] + λ·σ[crowd_weight]**, where λ is a user-supplied
-> risk-aversion coefficient. This shares the identical mathematical structure as
-> an investor minimizing variance for a given expected return, where λ serves as
-> the risk-aversion coefficient along the efficient frontier.
+> **This project models crowd-aware transit routing as a weighted-sum
+> scalarization of a bi-criteria (travel-time vs. crowd-exposure) objective:**
+> **min travel_time + λ·crowd**, where λ is a user-supplied crowd-aversion
+> coefficient that sweeps out the trade-off between a fast route and an uncrowded
+> one. This is *structurally analogous* to Markowitz mean-variance portfolio
+> selection (λ playing the role of the risk-aversion knob) — but the analogy is
+> **informal**: this objective is *linear* in the crowd term, not quadratic in a
+> variance/covariance term, and no variance is computed. See `docs/write-up.tex` §5
+> for the precise correspondence and its stated limits.
 
-A production-grade, zero-allocation, cache-optimized multi-label
-correcting Pareto-Dijkstra routing engine operating on real Namma Metro (BMRCL)
-GTFS data. Built to demonstrate systems-level C++ and applied mathematical
-optimization relevant to quantitative finance infrastructure.
+A cache-optimized, multi-label-correcting Pareto-Dijkstra routing engine in modern
+C++17. Routing `Label` objects are served from a fixed-capacity arena (no per-label
+heap allocation in the routing loop), and the graph is held in Compressed Sparse Row
+format for cache-friendly traversal. It ingests GTFS transit feeds — the bundled
+demo uses a synthetic feed; the `scripts/` normalizer and builder ingest real feeds
+(e.g. the real Namma Metro topology with a modelled timetable — see **GTFS Data**).
+Built to demonstrate systems-level C++ and applied optimization.
 
 ---
 
@@ -67,10 +72,17 @@ constraint: `d/dt(penalty) ≥ -1`.
 
 ### Pareto Dominance
 
-A label **(t, c)** dominates **(t', c')** if and only if `t ≤ t' ∧ c ≤ c'`.
-The engine maintains the full non-dominated Pareto frontier per node via a
+A label **(t, c)** dominates **(t', c')** iff `t ≤ t' ∧ c ≤ c'` with at least one
+strict inequality. Each node keeps its non-dominated `(t, c)` frontier in a
 sorted-vector label set with O(log k) binary-search insertion and O(1) amortized
 forward pruning.
+
+> **Scope note (important, and tested):** the engine expands **one** composite-optimal
+> departure per link — the λ-minimizer among the next *k* departures — so the frontier
+> it returns is the set of non-dominated trade-offs **across route choices** at a fixed
+> λ, *not* the full frontier over every possible boarding on a multi-departure link.
+> This is a deliberate, documented restriction; see `tests/test_pareto_oracle.cpp`
+> (`MultiDeparture_*`) for the exact semantics and `docs/write-up.tex` for the theory.
 
 ### Markowitz Analogy (and its Limitations)
 
@@ -85,27 +97,27 @@ discussion.
 
 ## Architecture
 
-### Zero-Allocation Label Routing
+### Arena-Allocated Label Routing
 
-All `Label` objects are allocated from a fixed-capacity `ArenaAllocator<Label>`
-backed by a contiguous heap array. Dominated labels are recycled via an O(1)
-intrusive free list. Working buffers (`pareto_sets`, priority queue,
-destination scratch) are promoted to private members of `ParetoDijkstra` and
-pre-allocated at construction — `run()` resets them in-place without calling
-`malloc` or `operator new` for any Label object.
+Routing `Label` objects are served from a fixed-capacity `ArenaAllocator<Label>`
+backed by a contiguous heap array; dominated labels are recycled through an O(1)
+intrusive free list. **No `Label` object is heap-allocated during the routing loop.**
+The priority queue and the destination-scratch buffer are `ParetoDijkstra` members
+that retain their capacity across queries.
 
 ```
-Label malloc / new calls during routing:         0
-Working-buffer malloc / new calls per query:     0  (pre-allocated at construction)
-QueryResult vector-shell allocation per query:   1  (~2.4 KB for BMRCL, at function exit)
+Label (routing-object) malloc / new during routing:        0   (arena-served)
+Priority-queue / scratch-buffer allocations per query:     0   (members, capacity retained)
+Per-node std::vector<Label*> frontier allocations/query:   O(reached nodes)  ← see note
 ```
 
-> **Note:** `QueryResult` is returned by value (by-move from `result_pareto_`).
-> `std::move` leaves the source vector with capacity zero; the subsequent `resize()`
-> allocates one small buffer for the vector shell (~`num_nodes × 24` bytes).
-> This allocation occurs **after** the RDTSCP measurement closes and does not appear
-> in the reported latency. Label allocations remain strictly zero.
-> For fully allocation-free operation, use an output-parameter API overload.
+> **Honest allocation note.** The per-node frontier containers (`std::vector<Label*>`)
+> are *not yet* zero-allocation: `run()` returns its working buffer by move and rebuilds
+> a fresh one each call, so the first insert into each reached node's frontier calls
+> `operator new` inside the timed loop. The **`Label` objects themselves** remain strictly
+> arena-served (zero heap). To make the *entire* query allocation-free, use the
+> output-parameter overload `run(src, dep, QueryResult& out)`, which reuses `out`'s buffers
+> in place — the buffers were built to support exactly this. (Planned; see `src/routing.cpp`.)
 
 ### Compressed Sparse Row Graph
 
@@ -175,9 +187,7 @@ namma-metro-router/
 ├── scripts/
 │   ├── stabilize_cpu.sh     # Governor=performance, disable Turbo, BD PROCHOT
 │   └── enable_gmode.sh      # Dell G-Mode maximum fan control
-├── docs/write-up.tex        # Formal mathematical proof document
-├── CLAUDE.md                # AI session architecture directives
-└── project_state.md         # Multi-session progress tracker
+└── docs/write-up.tex        # Formal mathematical write-up (FIFO, dominance, Markowitz analogy)
 ```
 
 ---

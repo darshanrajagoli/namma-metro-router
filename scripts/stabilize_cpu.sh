@@ -15,7 +15,7 @@
 #
 # USAGE:
 #   sudo bash scripts/stabilize_cpu.sh
-#   taskset -c 0 ./build/routing_engine_benchmark
+#   taskset -c 3 ./build/routing_engine_benchmark    # core 3: matches main_bench.cpp
 #
 # MATHEMATICAL JUSTIFICATION:
 #   RDTSC increments at the invariant TSC frequency (fixed nominal clock).
@@ -39,15 +39,15 @@ die()  { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 # ─── Root check ────────────────────────────────────────────────────────────
 [[ $EUID -eq 0 ]] || die "This script must be run as root: sudo bash $0"
 
-# ─── 1. Set performance governor on core 0 ─────────────────────────────────
-log "Setting CPU frequency governor to 'performance' on core 0..."
+# ─── 1. Set performance governor on core 3 ─────────────────────────────────
+log "Setting CPU frequency governor to 'performance' on core 3..."
 
 if ! command -v cpupower &>/dev/null; then
     die "cpupower not found. Run: sudo apt-get install linux-tools-generic"
 fi
 
-cpupower -c 0 frequency-set -g performance
-log "  ✓ Governor = performance (core 0)"
+cpupower -c 3 frequency-set -g performance
+log "  ✓ Governor = performance (core 3)"
 
 # Optionally set all cores (prevents thermal migration to hotter cores)
 NCORES=$(nproc)
@@ -106,36 +106,36 @@ else
     modprobe msr 2>/dev/null || warn "msr module already loaded or unavailable"
 
     # Read current value of MSR_POWER_CTL (0x1FC)
-    CURRENT_VAL=$(rdmsr -p 0 0x1FC 2>/dev/null || echo "0")
+    CURRENT_VAL=$(rdmsr -p 3 0x1FC 2>/dev/null || echo "0")
     log "  Current MSR_POWER_CTL (0x1FC) = 0x${CURRENT_VAL}"
 
     # Clear bit 0 (BD PROCHOT enable) — write back with bit 0 cleared
     # We use a safe fixed value that preserves other bits at their reset state.
     # For Intel 12th gen (Alder Lake): reset value of 0x1FC = 0x4005F
     # With BD PROCHOT disabled: 0x4005E
-    wrmsr -p 0 0x1FC 0x4005E
-    log "  ✓ BD PROCHOT disabled on core 0 (MSR 0x1FC = 0x4005E)"
+    wrmsr -p 3 0x1FC 0x4005E
+    log "  ✓ BD PROCHOT disabled on core 3 (MSR 0x1FC = 0x4005E)"
 fi
 
 # ─── 4. Verify current CPU frequency ───────────────────────────────────────
 log "Verifying CPU frequency configuration..."
 
-CURRENT_FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null || echo "unknown")
-CURRENT_GOV=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "unknown")
+CURRENT_FREQ=$(cat /sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq 2>/dev/null || echo "unknown")
+CURRENT_GOV=$(cat /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor 2>/dev/null || echo "unknown")
 
 echo ""
 echo "══════════════════════════════════════════════"
 echo "  Benchmark Environment Status"
 echo "══════════════════════════════════════════════"
-echo "  Core 0 Governor : $CURRENT_GOV"
-echo "  Core 0 Frequency: $CURRENT_FREQ kHz"
+echo "  Core 3 Governor : $CURRENT_GOV"
+echo "  Core 3 Frequency: $CURRENT_FREQ kHz"
 echo "  Turbo Boost     : $(cat $TURBO_PATH 2>/dev/null && echo 'DISABLED' || echo 'status unknown')"
 echo "══════════════════════════════════════════════"
 echo ""
 log "CPU environment stabilized. Run benchmarks with:"
 echo ""
-echo "  taskset -c 0 ./build/routing_engine_benchmark"
+echo "  taskset -c 3 ./build/routing_engine_benchmark"
 echo ""
 warn "To restore defaults (re-enable Turbo, reset governor): reboot or run:"
 echo "  echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo"
-echo "  sudo cpupower -c 0 frequency-set -g powersave"
+echo "  sudo cpupower -c 3 frequency-set -g powersave"

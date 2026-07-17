@@ -143,6 +143,18 @@ int main(int argc, char* argv[]) {
             &parser.stop_index_map()
         );
     } else {
+        // Loud, unmissable banner: a real feed that fails to load produces an
+        // identical-looking latency table on a 10-node toy graph. Make the
+        // degraded run impossible to mistake for a real one.
+        std::fprintf(stderr,
+            "\n"
+            "  ****************************************************************\n"
+            "  *  WARNING: 0 GTFS rows loaded -> FALLING BACK TO A 10-NODE    *\n"
+            "  *  SYNTHETIC TOY GRAPH. The numbers below describe a demo      *\n"
+            "  *  feed, NOT your data. If you pointed at a real feed, it was  *\n"
+            "  *  rejected (positional parser). Run it through                *\n"
+            "  *  scripts/normalize_gtfs.py first, then point at the output.  *\n"
+            "  ****************************************************************\n\n");
         std::printf("      No GTFS data loaded. Using 10-node synthetic graph.\n");
         graph.num_nodes = 10;
         graph.offset.assign(11, 0);
