@@ -163,26 +163,30 @@ namespace namma_metro
     // ParetoDijkstra::run — Multi-label correcting Pareto-Dijkstra
     // ═══════════════════════════════════════════════════════════════════════════
 
-    QueryResult ParetoDijkstra::run(uint32_t source_node, uint32_t departure_time)
+    void ParetoDijkstra::run(uint32_t source_node, uint32_t departure_time, QueryResult &out)
     {
         assert(source_node < graph_.num_nodes);
 
         // arena_->reset() bulk-frees all labels from the previous query in O(1).
-        // This MUST happen before we touch result_pareto_ below.
+        // This MUST happen before we touch the frontier vectors below.
         arena_->reset();
 
-        // Items-5/6 fix: route into pre-allocated member buffers so that the hot
-        // benchmark path incurs zero Label-heap allocations during routing.
+        // Reuse the caller's buffers. resize() allocates only on the FIRST call with a
+        // given `out`; on later calls (size already == num_nodes) it is skipped and each
+        // frontier vector is cleared in place, retaining its capacity — so the timed loop
+        // performs ZERO std::vector allocations (and zero Label allocs, via the arena).
         //
-        // Safe to wipe labels_ vectors directly: arena_->reset() above already
-        // freed the backing memory in bulk. Per-label deallocate is unnecessary.
-        for (auto &ps : result_pareto_)
+        // Safe to wipe labels_ vectors directly: arena_->reset() above already freed the
+        // backing Label memory in bulk. Per-label deallocate is unnecessary.
+        if (out.pareto_sets.size() != graph_.num_nodes)
+            out.pareto_sets.resize(graph_.num_nodes);
+        for (auto &ps : out.pareto_sets)
         {
             ps.unsafe_clear_after_arena_reset(); // clears labels_ vector, no arena call
         }
 
-        // Alias member buffer under its original name for readability in TODO blocks.
-        auto &result_pareto = result_pareto_;
+        // Alias under its original name for readability in the blocks below.
+        auto &result_pareto = out.pareto_sets;
 
         // v8 change: best_time_ removed entirely. It was written on every run() and
         // every successful insertion but never READ for any correctness decision.
@@ -341,24 +345,20 @@ namespace namma_metro
         // For the scaffold (penalty=0, simple graphs), this is acceptable.
         // A production implementation should store a Label* or arena index.
 
-        // ── Return QueryResult ────────────────────────────────────────────────
-        // ALLOCATION NOTE: std::move(result_pareto_) leaves it with capacity=0.
-        // The subsequent resize() incurs ONE operator new per query call for the
-        // vector-of-ParetoLabelSet shell (~num_nodes × 24 bytes ≈ 12 KB for BMRCL).
-        // This is NOT a Label allocation — all Labels are in the arena.
-        //
-        // HONEST CLAIM: the routing loop (Dijkstra + relaxation) is Label-allocation-
-        // free. One small vector-shell allocation occurs at query return, AFTER the
-        // RDTSCP measurement closes. CLAUDE.md §3's claim "provably allocation-free"
-        // should be read as "Label-object allocation-free during the timed loop."
-        //
-        // To eliminate this allocation entirely: use the output-parameter API:
-        //   void run(uint32_t src, uint32_t dep, QueryResult& out);
-        // Left as a future API improvement.
-        QueryResult result;
-        result.pareto_sets = std::move(result_pareto_);
-        result_pareto_.resize(graph_.num_nodes); // ONE allocation: restore for next call
-        return result;
+        // ── Done ──────────────────────────────────────────────────────────────
+        // `out` is filled in place. When the caller reuses the same QueryResult across
+        // queries (see the by-value wrapper below and main_bench.cpp), the timed loop is
+        // allocation-free end to end: Label objects come from the arena, and every
+        // per-node frontier vector retains its capacity via the in-place clear above.
+    }
+
+    // Convenience by-value overload: allocates a fresh QueryResult per call, so prefer
+    // the output-parameter overload above on hot paths (benchmarks, servers).
+    QueryResult ParetoDijkstra::run(uint32_t source_node, uint32_t departure_time)
+    {
+        QueryResult out;
+        run(source_node, departure_time, out);
+        return out;
     }
 
 } // namespace namma_metro

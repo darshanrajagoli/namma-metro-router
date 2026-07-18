@@ -254,13 +254,14 @@ int main(int argc, char* argv[]) {
 
     std::uniform_int_distribution<std::size_t> qidx(0, valid_queries.size() - 1);
 
+    namma_metro::QueryResult reusable; // persistent buffers -> zero allocations in the timed loop
     auto stats = namma_metro::bench::run_benchmark(
         [&]() {
             const auto& q = valid_queries[qidx(rng)];
-            auto result = router.run(q.src, q.dep);
-            // No reset_arena() — creates dangling Label* and is redundant.
+            router.run(q.src, q.dep, reusable); // fills reusable in place, reusing capacity
+            // No reset_arena() — run() resets the arena at its own start.
             // asm barrier prevents the compiler from eliding router.run().
-            __asm__ volatile("" : : "r"(&result) : "memory");
+            __asm__ volatile("" : : "r"(&reusable) : "memory");
         },
         ticks_per_ns,
         /*n_queries=*/10'000,

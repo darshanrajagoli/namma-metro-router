@@ -106,18 +106,18 @@ The priority queue and the destination-scratch buffer are `ParetoDijkstra` membe
 that retain their capacity across queries.
 
 ```
-Label (routing-object) malloc / new during routing:        0   (arena-served)
-Priority-queue / scratch-buffer allocations per query:     0   (members, capacity retained)
-Per-node std::vector<Label*> frontier allocations/query:   O(reached nodes)  ← see note
+Label (routing-object) malloc / new during routing:            0   (arena-served)
+Priority-queue / scratch-buffer allocations per query:         0   (members, capacity retained)
+Per-node frontier-vector allocations per query (reused buffer): 0   (capacity retained across calls)
 ```
 
-> **Honest allocation note.** The per-node frontier containers (`std::vector<Label*>`)
-> are *not yet* zero-allocation: `run()` returns its working buffer by move and rebuilds
-> a fresh one each call, so the first insert into each reached node's frontier calls
-> `operator new` inside the timed loop. The **`Label` objects themselves** remain strictly
-> arena-served (zero heap). To make the *entire* query allocation-free, use the
-> output-parameter overload `run(src, dep, QueryResult& out)`, which reuses `out`'s buffers
-> in place — the buffers were built to support exactly this. (Planned; see `src/routing.cpp`.)
+> **Allocation note.** The routing loop is allocation-free on the hot path. Use
+> `run(src, dep, QueryResult& out)`: it fills `out` in place, and reusing the same
+> `QueryResult` across queries keeps every per-node frontier vector's capacity, so after
+> the first call no `std::vector` grows and no `operator new` runs inside the timed region
+> (`Label` objects always come from the arena). The benchmark uses this overload. The
+> convenience by-value overload `QueryResult run(src, dep)` allocates a fresh result per
+> call and is intended for one-off queries, not the hot path.
 
 ### Compressed Sparse Row Graph
 

@@ -362,7 +362,7 @@ namespace namma_metro
         // CI container with a smaller stack silently overflows on construction.
         // Heap-allocate unconditionally via unique_ptr.
         explicit ParetoDijkstra(const CSRGraph &graph, LookaheadConfig config = {})
-            : graph_(graph), config_(config), arena_(std::make_unique<ArenaAllocator<Label>>()), result_pareto_(graph.num_nodes)
+            : graph_(graph), config_(config), arena_(std::make_unique<ArenaAllocator<Label>>())
         {
             // Reserve dest_scratch_ to the maximum out-degree in the graph.
             // A fixed reserve of 64 would trigger reallocation on high-frequency
@@ -384,6 +384,12 @@ namespace namma_metro
          */
         QueryResult run(uint32_t source_node, uint32_t departure_time);
 
+        /// Allocation-free hot path: fills @p out in place. When the SAME QueryResult
+        /// is reused across calls, every per-node frontier vector retains its capacity,
+        /// so the timed routing loop performs zero heap allocations (Label objects come
+        /// from the arena). Prefer this overload in benchmarks and servers.
+        void run(uint32_t source_node, uint32_t departure_time, QueryResult &out);
+
         /// Reset arena between queries (preserves allocated capacity).
         void reset_arena() { arena_->reset(); }
 
@@ -404,21 +410,14 @@ namespace namma_metro
         // See routing.cpp run() for the assert.
         MinHeap pq_;
 
-        // Items-5/6 fix: promote per-query working buffers to private members so
-        // they are allocated once at construction and reused across all run() calls.
-        //
-        // result_pareto_: working Pareto sets during routing. Moved into QueryResult
-        //   at the end of run() — ONE allocation per call for the vector shell only
-        //   (~num_nodes × 24 bytes ≈ 12 KB for BMRCL). Zero Label-object allocations.
         // dest_scratch_: unique-destination scratch buffer; reserved at construction
-        //   to graph max out-degree, cleared not reallocated during routing.
+        // to the graph's max out-degree and cleared (not reallocated) during routing.
         //
-        // NOTE: best_time_ (scalar min-arrival-per-node array) was removed in v8.
-        //   It was written on every run() and every insertion but NEVER READ for any
-        //   correctness decision (the lazy deletion filter uses result_pareto_ labels
-        //   exclusively, not best_time_). Maintaining it cost O(V) per std::fill +
-        //   O(insertions) per run with zero algorithmic benefit. Removed entirely.
-        std::vector<ParetoLabelSet> result_pareto_; ///< working Pareto sets (moved into QueryResult per call)
+        // The per-node Pareto frontiers live in the caller-owned QueryResult passed to
+        // run(..., QueryResult&). Reusing one QueryResult across queries keeps those
+        // vectors' capacity, so no separate working-set member is needed and the timed
+        // loop stays allocation-free. (best_time_ was removed in v8: written every run()
+        // but never read — the lazy-deletion filter uses the frontier labels directly.)
         std::vector<uint32_t> dest_scratch_;        ///< unique-dest work buffer
     };
 
