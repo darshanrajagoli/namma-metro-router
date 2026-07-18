@@ -195,19 +195,19 @@ namespace namma_metro
                 te.edge.crowd_weight = crowd;
                 te.edge.penalty = 0;
                 // Integration-Audit Item-6 fix: penalty is a static field on Edge.
-                // It is set to 0 here and STAYS 0 throughout the scaffold.
+                // It is set to 0 here and STAYS 0 throughout this build.
                 // The previous comment "Populated at query time by select_optimal_departure"
                 // was wrong and dangerous: select_optimal_departure returns Edge by VALUE
-                // (a copy of the stored edge). Nothing in the scaffold writes a computed
+                // (a copy of the stored edge). Nothing in this build writes a computed
                 // penalty back into that copy, so opt_edge->penalty is always 0 when
                 // accumulated into new_crowd = current.crowd_cost + crowd_weight + penalty.
                 //
                 // Consequence: the penalty dimension of the bi-criteria objective is
-                // silently zero for all queries in the scaffold. The FIFO proof's
+                // silently zero for all queries in this build. The FIFO proof's
                 // d/dt(penalty) >= -1 condition is therefore trivially satisfied (0 >= -1)
                 // but untestable — the constraint is never exercised.
                 //
-                // This is INTENTIONAL for the scaffold: the three components can be
+                // This is INTENTIONAL for this build: the three components can be
                 // implemented and verified correctly with penalty=0. For the full
                 // production implementation (summer 2026 with real BMRCL GTFS), penalty
                 // should encode a time-dependent wait surcharge computed in graph_builder
@@ -290,7 +290,7 @@ namespace namma_metro
         //     (a) transfers.txt in the GTFS feed (standard GTFS optional file), or
         //     (b) a hardcoded interchange table specific to BMRCL topology.
         //   The BMRCL GTFS feed may or may not include transfers.txt.
-        //   See project_state.md "COMPONENT 4 (future): Transfer edge generation".
+        //   Transfer-edge generation is future work (see docs/write-up.tex).
         //
         // ⚠ ORDERING INVARIANT FOR FUTURE IMPLEMENTORS:
         //   Transfer edges MUST be added to temp_edges BEFORE the Step 3 sort:

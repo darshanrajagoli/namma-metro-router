@@ -10,7 +10,7 @@
  *
  * PURPOSE:
  *   Locks the contract of the arena-backed free-list allocator that makes the
- *   routing loop allocation-free (CLAUDE.md §3). The Pareto-Dijkstra engine
+ *   routing loop allocation-free. The Pareto-Dijkstra engine
  *   relies on three guarantees verified here:
  *     1. allocate()/deallocate() are O(1) and maintain used_count() exactly.
  *     2. deallocate() pushes the slot onto a free list that the NEXT allocate()

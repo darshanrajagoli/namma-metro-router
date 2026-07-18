@@ -22,7 +22,7 @@
  * MATHEMATICAL CONTEXT:
  *   The FIFO lemma (write-up.tex §2) requires: for all t1 <= t2,
  *     penalty(u,v,t2) - penalty(u,v,t1) >= -(t2 - t1).
- *   In the scaffold, penalty = 0 everywhere (graph_builder.cpp), so this holds
+ *   In this build, penalty = 0 everywhere (graph_builder.cpp), so this holds
  *   trivially. These tests instead verify the crowd_weight derivative bound as
  *   a conservative proxy: if crowd_weight drops faster than 1 unit/second, the
  *   composite cost (travel + lambda*crowd) could exhibit FIFO-like violations.

@@ -193,7 +193,7 @@ TEST(GraphBuilderTest, InjectsGaussianCrowdModel) {
     EXPECT_EQ(b[0].crowd_weight, 1000u)
         << "Crowd at the 08:00 peak must scale to 1000";
     EXPECT_EQ(b[0].crowd_weight, expected_crowd(28800));
-    EXPECT_EQ(b[0].penalty, 0u) << "Penalty is 0 throughout the scaffold";
+    EXPECT_EQ(b[0].penalty, 0u) << "Penalty is 0 in this build";
 }
 
 // Two trips serving the same leg must be sorted ascending by departure_time.

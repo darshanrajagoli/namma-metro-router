@@ -99,11 +99,11 @@ namespace namma_metro
          * @brief Attempt to insert @p new_label into the Pareto frontier.
          *
          * ═══════════════════════════════════════════════════════════════════════
-         * ██  CORE COMPONENT — AI IMPLEMENTATION REQUIRED                    ██
-         * ██  THE AI MUST COMPLETELY GENERATE THIS FUNCTION BODY.            ██
+         * CORE COMPONENT — correctness-critical Pareto dominance logic.
+         * Implemented in src/routing.cpp following the three-step protocol below.
          * ═══════════════════════════════════════════════════════════════════════
          *
-         * Required three-step protocol (implement exactly this):
+         * Three-step protocol:
          *
          * STEP 1 — O(log k) Binary Search:
          *   Use std::lower_bound on labels_ (sorted by arrival_time) to find the
@@ -179,10 +179,7 @@ namespace namma_metro
          */
         bool insert_and_dominate(Label *new_label, ArenaAllocator<Label> &arena);
 
-        // ── TODO: IMPLEMENTATION REQUIRED ─────────────────────────────
-        // Implement insert_and_dominate in src/routing.cpp following the
-        // three-step protocol documented above.
-        // ─────────────────────────────────────────────────────────────────────
+        // Implemented in src/routing.cpp following the three-step protocol above.
 
         [[nodiscard]] bool empty() const noexcept { return labels_.empty(); }
         [[nodiscard]] std::size_t size() const noexcept { return labels_.size(); }
@@ -221,7 +218,7 @@ namespace namma_metro
      * selects the one minimizing composite cost = travel_time + penalty.
      *
      * This is necessary to preserve the FIFO property under synthetic crowd
-     * penalties. See §7.1 of the master directive for the mathematical proof.
+     * penalties. See docs/write-up.tex for the mathematical proof.
      */
     struct LookaheadConfig
     {
@@ -234,8 +231,8 @@ namespace namma_metro
      * @brief Select the optimal departure from node u to node v given current time.
      *
      * ═══════════════════════════════════════════════════════════════════════════
-     * ██  CORE COMPONENT — AI IMPLEMENTATION REQUIRED                       ██
-     * ██  THE AI MUST COMPLETELY GENERATE THIS FUNCTION BODY.               ██
+     * CORE COMPONENT — Bounded-Wait Lookahead departure selection.
+     * Implemented in src/routing.cpp.
      * ═══════════════════════════════════════════════════════════════════════════
      *
      * Mathematical context:
@@ -296,9 +293,7 @@ namespace namma_metro
         uint32_t current_time,
         uint32_t u,
         uint32_t v);
-    // ── TODO: AI IMPLEMENTATION REQUIRED ─────────────────────────────────────
-    // Fully implement select_optimal_departure() in src/routing.cpp.
-    // ─────────────────────────────────────────────────────────────────────────
+    // Implemented in src/routing.cpp.
 
     // ═══════════════════════════════════════════════════════════════════════════
     // § 4.  Pareto-Dijkstra Engine
@@ -320,20 +315,17 @@ namespace namma_metro
     /**
      * @brief Multi-label correcting Pareto-Dijkstra router.
      *
-     * Computes the full Pareto frontier of non-dominated (time, crowd) path
-     * labels from a source node to all reachable destinations.
+     * Computes the non-dominated (time, crowd) frontier from a source node to all
+     * reachable destinations (across route choices at a fixed lambda; see the
+     * scope note in the file header).
      *
      * Algorithm sketch:
      *   pq = min-heap ordered by (arrival_time, crowd_cost)
      *   Push source label (arrival_time=departure_time, crowd_cost=0) to pq.
      *   while pq non-empty:
      *     pop Label L
-     *     // ── CORE: Lazy Deletion filter ────────────────────────────────
-     *     // TODO: AI IMPLEMENTATION REQUIRED
-     *     // If L is dominated by current best-known label for L.node, skip.
-     *     // Hint: check pareto_sets[L.node].insert_and_dominate() return value
-     *     // or maintain a separate best-time array.
-     *     // ──────────────────────────────────────────────────────────────
+     *     // Lazy-deletion filter: skip L if an already-settled label at L.node
+     *     //   strictly dominates it (bi-criteria). See src/routing.cpp.
      *     for each edge e in graph.edges_of(L.node):
      *       optimal = select_optimal_departure(graph, config, L.arrival_time, L.node, e.destination)
      *       if optimal has value:
@@ -367,7 +359,7 @@ namespace namma_metro
             // Reserve dest_scratch_ to the maximum out-degree in the graph.
             // A fixed reserve of 64 would trigger reallocation on high-frequency
             // interchange nodes (Kempegowda/Majestic can have >100 departure edges).
-            // Any reallocation inside the hot routing loop violates CLAUDE.md §3.
+            // Any reallocation inside the hot routing loop violates the zero-allocation invariant.
             // One O(V) pass at construction prevents all hot-path allocations.
             uint32_t max_deg = 0;
             for (uint32_t u = 0; u < graph.num_nodes; ++u)

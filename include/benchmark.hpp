@@ -190,7 +190,7 @@ struct LatencyStats {
  *   4. Convert ticks → nanoseconds and compute percentiles.
  *
  * @tparam QueryFn   Callable with signature `void()` wrapping one routing query.
- *                   Must not allocate heap memory (enforced by CLAUDE.md).
+ *                   Must not allocate heap memory.
  *
  * @param query_fn   The routing query to benchmark.
  * @param ticks_per_ns TSC calibration value from calibrate_tsc_ns().

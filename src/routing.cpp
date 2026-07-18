@@ -205,7 +205,7 @@ namespace namma_metro
 
         // Insert the source label into its Pareto set FIRST, then push a value
         // copy onto the priority queue. Insertion into an empty set is always
-        // non-dominated, so it must succeed. (The earlier scaffold pushed before
+        // non-dominated, so it must succeed. (An earlier version pushed before
         // inserting only to stay alive while insert_and_dominate was a stub that
         // always returned false; with the real implementation the natural
         // insert-then-push order is correct.)
@@ -342,7 +342,7 @@ namespace namma_metro
         // mid/mid, slow/uncrowded), a label at C with pred=B_id does not encode
         // which of B's 3 labels was used. Full path reconstruction requires
         // matching by arrival_time compatibility — ambiguous on wide frontiers.
-        // For the scaffold (penalty=0, simple graphs), this is acceptable.
+        // For this build (penalty=0, simple graphs), this is acceptable.
         // A production implementation should store a Label* or arena index.
 
         // ── Done ──────────────────────────────────────────────────────────────

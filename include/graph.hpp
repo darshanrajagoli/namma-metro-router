@@ -10,7 +10,7 @@
  * @file graph.hpp
  * @brief Compressed Sparse Row (CSR) graph for time-dependent transit routing.
  *
- * ARCHITECTURAL MANDATE (CLAUDE.md §4):
+ * ARCHITECTURAL INVARIANT:
  *   The graph MUST be stored in CSR format. Never use std::vector<std::vector<Edge>>.
  *   Nested dynamic arrays cause pointer-chasing that destroys L1 cache coherency.
  *   On a Dell G15 with a 12th-gen Intel CPU, L1d = 48 KB per core, L2 = 1.25 MB.
@@ -35,7 +35,7 @@ namespace namma_metro {
 /**
  * @brief A directed, time-stamped, bi-criteria edge in the transit graph.
  *
- * Field ordering follows CLAUDE.md §5: largest primitive first to guarantee
+ * Field ordering: largest primitive first to guarantee
  * zero implicit padding. All fields are uint32_t (4 bytes each); total = 20 bytes.
  *
  * Interpretation:
@@ -74,7 +74,7 @@ struct Edge {
                              ///< 0 = board immediately (ideal FIFO case).
 };
 
-// Compile-time memory layout enforcement (CLAUDE.md §4)
+// Compile-time memory layout enforcement
 static_assert(sizeof(Edge) == 20,
     "Edge struct must be exactly 20 bytes. Check field ordering for padding.");
 static_assert(alignof(Edge) == 4,
@@ -94,7 +94,7 @@ static_assert(alignof(Edge) == 4,
  *   4. Compute prefix-sum to build offset[].
  *   5. Fill edge_data[] in CSR order.
  *
- * Query (repeated at routing time — must be allocation-free per CLAUDE.md §3):
+ * Query (repeated at routing time — must be allocation-free):
  *   for (uint32_t i = offset[u]; i < offset[u+1]; ++i) {
  *       const Edge& e = edge_data[i];  // L1 cache hit guaranteed
  *       // relax e ...
@@ -152,7 +152,7 @@ struct StopRecord;
  * @brief Constructs a CSRGraph from sanitized GTFS stop-time data.
  *
  * This is intentionally separated from CSRGraph itself: immutability of
- * the graph after construction is a hard invariant (CLAUDE.md §3).
+ * the graph after construction is a hard invariant.
  *
  * Usage:
  *   GTFSParser parser("./data");

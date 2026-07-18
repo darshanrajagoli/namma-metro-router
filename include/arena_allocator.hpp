@@ -12,7 +12,7 @@
  * @brief Arena-backed free-list allocator for routing Label objects.
  *
  * ╔══════════════════════════════════════════════════════════════╗
- * ║  WHY THIS MATTERS TO AN ALGORITHMIC TRADING INTERVIEWER     ║
+ * ║  WHY AN ARENA ALLOCATOR — determinism over the OS heap     ║
  * ╠══════════════════════════════════════════════════════════════╣
  * ║  The OS heap (malloc/new) has:                              ║
  * ║    • Non-deterministic latency (p99 ≈ microseconds)         ║
@@ -27,9 +27,9 @@
  * ║    • Pre-allocates all memory at startup (O(1) amortized)   ║
  * ║    • Free-list recycles dominated Label slots instantly      ║
  * ║    • Gives O(1) allocate and O(1) deallocate                ║
- * ║    • Makes every routing query allocation-free (CLAUDE.md)  ║
+ * ║    • Keeps Label allocation off the OS heap in routing  ║
  * ║                                                              ║
- * ║  Mastering this pattern signals elite systems maturity.     ║
+ * ║  A standard technique in latency-sensitive systems code.     ║
  * ╚══════════════════════════════════════════════════════════════╝
  *
  * Architecture:
