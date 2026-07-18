@@ -245,17 +245,26 @@ taskset -c 3 ./build/routing_engine_benchmark ./data
 
 ### GTFS Data
 
-Download from [India Urban Data Exchange (IUDX)](https://iudx.org.in/) or
-[BMRCL open data portal](https://english.bmrc.co.in/). Place files in `data/`:
+The engine reads five GTFS files (`agency.txt`, `stops.txt`, `routes.txt`, `trips.txt`,
+`stop_times.txt`) from a data directory. The bundled demo uses a small synthetic feed; for
+a real network, use the helpers in `scripts/`:
 
+```bash
+# Real Namma Metro topology (public-domain station/line/distance data) + a modelled
+# 5-min-headway timetable (BMRCL publishes no open timetable):
+python3 scripts/build_namma_metro_gtfs.py <bengaluru_metro_network.csv> data
+./build/routing_engine_benchmark ./data
+
+# ...or normalize any real GTFS feed (e.g. BART) into the engine's layout:
+python3 scripts/normalize_gtfs.py <raw_feed_dir> data
+./build/routing_engine_benchmark ./data
 ```
-data/
-├── agency.txt
-├── stops.txt
-├── routes.txt
-├── trips.txt
-└── stop_times.txt
-```
+
+> The C++ parser reads GTFS columns **positionally**; `normalize_gtfs.py` rewrites a real
+> feed (which orders columns by header name) into that layout, keeps rail routes, and
+> collapses platform stops onto their parent station. If **0 rows load**, the benchmark
+> prints a prominent warning and falls back to a 10-node synthetic graph (so a failed load
+> can't masquerade as a real result).
 
 ---
 ## Core Components

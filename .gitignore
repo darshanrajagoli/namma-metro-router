@@ -45,3 +45,7 @@ data/
 # Benchmark output (generated — add results/ manually if you want them tracked)
 results/*.txt
 results/*.csv
+
+# Local-only working notes — never publish to the portfolio repo
+ANALYSIS.md
+WORKFLOW.md
