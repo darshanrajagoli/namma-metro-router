@@ -96,10 +96,11 @@ protected:
         graph.offset[num_nodes] = static_cast<uint32_t>(graph.edge_data.size());
         graph.num_edges = static_cast<uint32_t>(graph.edge_data.size());
 
-        // Item-8/B8 fix: sort each node's edges by departure_time so that
-        // select_optimal_departure()'s std::lower_bound finds the correct
-        // first-eligible departure. Without this, custom test cases with
-        // out-of-order adjacency lists produce silently wrong results.
+        // Sort each node's edges by departure_time: select_optimal_departure()
+        // uses std::lower_bound to find the first eligible departure, which
+        // requires the range to be sorted. GraphBuilder guarantees this for real
+        // feeds; test fixtures that construct CSR ranges by hand must do it
+        // themselves or the binary search returns silently wrong results.
         for (uint32_t u = 0; u < num_nodes; ++u) {
             auto* begin = graph.edge_data.data() + graph.offset[u];
             auto* end   = graph.edge_data.data() + graph.offset[u + 1];
@@ -311,10 +312,11 @@ TEST_F(LazyDeletionTest, BiCriteriaFrontier_BothLabelsPresent) {
     ASSERT_EQ(result.pareto_sets[2].size(), 2u)
         << "Pareto frontier at node 2 must have exactly 2 labels: "
            "(arr=1300, crowd=100) and (arr=1600, crowd=10). "
-           "size()==1 means your lazy deletion uses the single-objective check "
-           "`if (arrival_time > best_time[node]) continue` which discards the "
-           "second label as stale even though it is Pareto-non-dominated. "
-           "Use the bi-criteria filter from the TODO block in routing.cpp.";
+           "size()==1 means lazy deletion is applying the single-objective check "
+           "`if (arrival_time > best_time[node]) continue`, which discards the "
+           "second label as stale even though it is Pareto-non-dominated. The "
+           "filter must test strict dominance on BOTH criteria — see the "
+           "lazy-deletion block in ParetoDijkstra::run.";
 
     EXPECT_EQ(result.pareto_sets[2].labels()[0]->arrival_time, 1300u);
     EXPECT_EQ(result.pareto_sets[2].labels()[0]->crowd_cost,   100u);

@@ -122,7 +122,7 @@ namespace namma_metro
                 const StopTimeRecord &from = *sorted_ptrs[k];
                 const StopTimeRecord &to = *sorted_ptrs[k + 1];
 
-                // H7: Skip non-boardable stops (pickup_type=1 means no pickup allowed)
+                // Skip non-boardable stops (pickup_type=1 means no pickup allowed)
                 if (from.pickup_type == 1)
                     continue;
                 // Also skip if drop-off only at destination
@@ -177,8 +177,8 @@ namespace namma_metro
                 const uint32_t raw_travel = to.arrival_time - from.departure_time;
                 const uint32_t travel_time = (raw_travel == 0) ? 1u : raw_travel;
 
-                // C5: Inject synthetic Gaussian crowd model
-                // G6: Overflow safety — crowd_weight ∈ [0, 1000] (scale factor × 10 on [0,100]).
+                // Inject the synthetic Gaussian crowd model.
+                // Overflow safety — crowd_weight ∈ [0, 1000] (scale factor × 10 on [0,100]).
                 // Accumulated crowd_cost over a full BMRCL path is bounded:
                 //   max_edges_per_path ≤ |V| ≈ 100 (no repeated nodes in a simple path)
                 //   max_crowd_weight_per_edge = 1000
@@ -194,24 +194,24 @@ namespace namma_metro
                 te.edge.travel_time = travel_time;
                 te.edge.crowd_weight = crowd;
                 te.edge.penalty = 0;
-                // Integration-Audit Item-6 fix: penalty is a static field on Edge.
-                // It is set to 0 here and STAYS 0 throughout this build.
-                // The previous comment "Populated at query time by select_optimal_departure"
-                // was wrong and dangerous: select_optimal_departure returns Edge by VALUE
-                // (a copy of the stored edge). Nothing in this build writes a computed
-                // penalty back into that copy, so opt_edge->penalty is always 0 when
-                // accumulated into new_crowd = current.crowd_cost + crowd_weight + penalty.
+                // penalty is a STATIC field on Edge: set to 0 here, and 0 for the
+                // entire lifetime of the graph. Nothing computes it at query time —
+                // select_optimal_departure returns Edge by VALUE (a copy of the
+                // stored edge) and never writes back — so opt_edge->penalty is always
+                // 0 where routing.cpp accumulates
+                //   new_crowd = current.crowd_cost + crowd_weight + penalty.
                 //
-                // Consequence: the penalty dimension of the bi-criteria objective is
-                // silently zero for all queries in this build. The FIFO proof's
-                // d/dt(penalty) >= -1 condition is therefore trivially satisfied (0 >= -1)
-                // but untestable — the constraint is never exercised.
+                // Consequence to be aware of before relying on it: the penalty term of
+                // the composite objective contributes nothing in this build. The FIFO
+                // proof's d/dt(penalty) >= -1 condition is trivially satisfied (0 >= -1)
+                // and correspondingly never exercised. The crowd_weight term above is
+                // the objective's only active second dimension.
                 //
-                // This is INTENTIONAL for this build: the three components can be
-                // implemented and verified correctly with penalty=0. For the full
-                // production implementation (summer 2026 with real BMRCL GTFS), penalty
-                // should encode a time-dependent wait surcharge computed in graph_builder
-                // from historical dwell distributions, stored in the Edge, and non-zero.
+                // To make penalty meaningful, encode a time-dependent wait surcharge
+                // here (from dwell-time distributions) and store it in the Edge. Doing
+                // so re-activates the derivative bound, so the debug FIFO invariant
+                // check below and tests/test_fifo_invariant.cpp must be extended to
+                // cover it.
                 temp_edges.push_back(te);
             }
 
@@ -301,7 +301,7 @@ namespace namma_metro
         //   the lower_bound binary search in select_optimal_departure().
         //   There is no runtime error — Dijkstra simply never sees the transfer edges.
 
-        // M7: Debug-mode FIFO invariant check.
+        // Debug-mode FIFO invariant check.
         // For each (u→v) edge pair with departure times t1 < t2:
         // verify crowd_weight(t2) - crowd_weight(t1) >= -(t2 - t1)
         // i.e., penalty cannot drop faster than 1 unit per second.

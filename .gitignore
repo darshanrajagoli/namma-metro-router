@@ -28,6 +28,8 @@ docs/*.fdb_latexmk
 
 # GTFS data (large, not source code)
 data/
+data_*/
+raw_*/
 *.zip
 
 # Editor artifacts

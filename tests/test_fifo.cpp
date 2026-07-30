@@ -10,9 +10,8 @@
  * @brief Google Test suite validating FIFO preservation under Bounded-Wait Lookahead.
  *
  * PURPOSE:
- *   These tests are specifically engineered to FAIL if you implement a naive
- *   "strict next-train" policy. You must implement the Bounded-Wait Lookahead
- *   in select_optimal_departure() to make them pass.
+ *   These tests discriminate Bounded-Wait Lookahead from a naive "strict
+ *   next-train" policy: a strict-next-train implementation fails them.
  *
  * MATHEMATICAL CONTEXT:
  *   FIFO property: t1 + w(u,v,t1) ≤ t2 + w(u,v,t2) for all t1 ≤ t2.
@@ -21,8 +20,8 @@
  *   high-penalty early departure when a slightly-later, low-penalty departure
  *   exists within the W_max window.
  *
- * You must implement select_optimal_departure() to pass ALL these tests.
- * You will be asked to derive the FIFO constraint proof at interview.
+ *   Tests 9-11 additionally pin the reachability consequence of the W_max
+ *   window — see the Known Limitations table in README.md.
  */
 
 using namespace namma_metro;
@@ -175,10 +174,8 @@ TEST_F(BoundedWaitTest, OffPeak_WaitingForSecondTrain_IsOptimal) {
 //
 // composite(A) < composite(B) → Train A must be selected.
 //
-// ⚠ Previous version of this test was WRONG: it expected departure current+720
-//   (Train B) because the comment miscalculated composite(A) as 300 (dropping
-//   pen=50) and concluded B wins on travel_time alone. That validated the FM6
-//   bug — minimizing travel_time instead of arrival_time when lambda=0.
+// The distinction matters: minimizing travel_time alone would pick Train B,
+// which arrives 530s later. With lambda=0 the objective is arrival time.
 // ─────────────────────────────────────────────────────────────────────────
 TEST_F(BoundedWaitTest, LambdaZero_MinimizesArrivalTime_NotTravelTimeAlone) {
     LookaheadConfig time_only{.k_departures = 5, .W_max_seconds = 1800, .lambda = 0.0f};
@@ -197,9 +194,9 @@ TEST_F(BoundedWaitTest, LambdaZero_MinimizesArrivalTime_NotTravelTimeAlone) {
     // A has strictly lower composite → A is selected.
     EXPECT_EQ(result->departure_time, current_time + 120)
         << "With lambda=0, composite = departure_time + travel_time + penalty. "
-           "composite(A)=current+470 < composite(B)=current+1000. Train A must win. "
-           "If Train B is selected: your implementation minimizes travel_time alone "
-           "(the FM6 bug). Fix: composite = dep_time + travel_time + lambda*crowd + penalty.";
+           "composite(A)=current+470 < composite(B)=current+1000, so Train A wins. "
+           "Selecting Train B means travel_time alone is being minimized rather "
+           "than arrival time.";
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -225,11 +222,14 @@ TEST_F(BoundedWaitTest, KDeparturesLimitRespected) {
     auto result = select_optimal_departure(graph, k3_config, current_time, 0, 1);
 
     ASSERT_TRUE(result.has_value());
-    // Among first 3: composite = [820, 818, 785]. Index 2 wins.
+    // composite = travel_time + lambda*crowd_weight + penalty, lambda = 1:
+    //   index 0: 300 + 500 + 20 = 820
+    //   index 1: 310 + 490 + 18 = 818
+    //   index 2: 290 + 480 + 15 = 785  ← minimum among the first k=3
     EXPECT_EQ(result->departure_time, current_time + 300u)
-        << "With k=3, only first 3 departures are evaluated. "
-           "Index 2 (dep+300) has composite cost 285+15=800... adjust per your formula. "
-           "Key: departure at +400 or +500 must NOT be selected.";
+        << "With k=3 only the first three departures are evaluated; index 2 has the "
+           "lowest composite (785) among them. Departures at +400 and +500 have lower "
+           "composite still, but must be invisible.";
     EXPECT_NE(result->departure_time, current_time + 400u)
         << "4th departure must be invisible when k=3";
 }
@@ -290,4 +290,124 @@ TEST_F(BoundedWaitTest, ExactlyAtDeparture_IsBoardable) {
     ASSERT_TRUE(result.has_value())
         << "departure_time == current_time must be boardable (≥ is the condition, not >)";
     EXPECT_EQ(result->departure_time, 28800u);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tests 9–11: the W_max reachability cliff, end to end.
+//
+// The bounded-wait window is a search-space bound, not a routing preference:
+// when no service to a neighbour departs within W_max_seconds,
+// select_optimal_departure returns nullopt and the Dijkstra loop simply never
+// relaxes that link. Downstream stations then report as UNREACHABLE even though
+// a passenger could reach them by waiting longer.
+//
+// On the metro feeds this engine targets (≤30 min headway) the window never
+// binds. On a sparse or late-night feed it does. These tests pin that boundary
+// so it is a documented, tested property rather than a surprise — see the
+// "Known Limitations" table in README.md.
+// ─────────────────────────────────────────────────────────────────────────
+class ReachabilityWindowTest : public ::testing::Test {
+protected:
+    /**
+     * @brief Three-station chain 0 → 1 → 2 with a controllable gap at node 1.
+     *
+     * Node 0 departs at 08:00 and reaches node 1 at 08:05. The onward service
+     * 1 → 2 departs @p gap_seconds after that arrival, so @p gap_seconds alone
+     * decides whether node 2 falls inside the bounded-wait window.
+     */
+    void build_chain(uint32_t gap_seconds) {
+        const uint32_t dep0     = 28800;              // 08:00 leg 0 → 1
+        const uint32_t arrive1  = dep0 + 300;         // 08:05 at node 1
+        const uint32_t dep1     = arrive1 + gap_seconds;
+
+        graph = CSRGraph{};
+        graph.num_nodes = 3;
+
+        Edge leg0;
+        leg0.destination    = 1;
+        leg0.departure_time = dep0;
+        leg0.travel_time    = 300;
+        leg0.crowd_weight   = 100;
+        leg0.penalty        = 0;
+
+        Edge leg1;
+        leg1.destination    = 2;
+        leg1.departure_time = dep1;
+        leg1.travel_time    = 300;
+        leg1.crowd_weight   = 100;
+        leg1.penalty        = 0;
+
+        graph.edge_data = {leg0, leg1};
+        // CSR: node 0 owns edge [0,1), node 1 owns edge [1,2), node 2 has none.
+        graph.offset    = {0, 1, 2, 2};
+        graph.num_edges = 2;
+    }
+
+    /// True when @p node has at least one Pareto label, i.e. it was reached.
+    static bool reached(const QueryResult& r, uint32_t node) {
+        return !r.pareto_sets[node].labels().empty();
+    }
+
+    CSRGraph graph;
+};
+
+// Test 9: the cliff itself — a station reachable in the graph is reported
+// unreachable because the onward service lies beyond the default window.
+TEST_F(ReachabilityWindowTest, SparseFeed_StationBeyondWindowIsReportedUnreachable) {
+    build_chain(/* gap_seconds= */ 3600);  // next train in 1 h, window is 30 min
+
+    LookaheadConfig default_window{.k_departures = 5, .W_max_seconds = 1800, .lambda = 1.0f};
+    ParetoDijkstra router(graph, default_window);
+    auto result = router.run(0, 28800);
+
+    EXPECT_TRUE(reached(result, 1))
+        << "Node 1 is one leg away and well inside the window — it must be reached";
+    EXPECT_FALSE(reached(result, 2))
+        << "Documented limitation: the onward service departs 3600s after arrival at "
+           "node 1, beyond W_max_seconds=1800, so the link is never relaxed and node 2 "
+           "reports unreachable. This is a search-space bound, not a claim that no "
+           "journey exists.";
+}
+
+// Test 10: the documented mitigation — widening the window restores reachability.
+TEST_F(ReachabilityWindowTest, WideningWindowRestoresReachability) {
+    build_chain(/* gap_seconds= */ 3600);
+
+    LookaheadConfig wide_window{.k_departures = 5, .W_max_seconds = 7200, .lambda = 1.0f};
+    ParetoDijkstra router(graph, wide_window);
+    auto result = router.run(0, 28800);
+
+    ASSERT_TRUE(reached(result, 2))
+        << "With W_max_seconds=7200 the 3600s wait is inside the window, so node 2 "
+           "must be reached. If this fails the mitigation documented in README.md's "
+           "Known Limitations table no longer works.";
+
+    // Arrival is 08:00 + 300s ride + 3600s wait + 300s ride = 12600s (11:30).
+    const auto& labels = result.pareto_sets[2].labels();
+    ASSERT_EQ(labels.size(), 1u) << "One route exists, so the frontier holds one label";
+    EXPECT_EQ(labels.front()->arrival_time, 28800u + 300u + 3600u + 300u)
+        << "Waiting is modelled as arrival at the onward departure plus its ride time";
+}
+
+// Test 11: the window does not bind on a dense feed — the regime this engine
+// actually targets. Both configurations must agree.
+TEST_F(ReachabilityWindowTest, DenseFeed_WindowDoesNotBind) {
+    build_chain(/* gap_seconds= */ 300);  // 5-min headway, as on Namma Metro
+
+    LookaheadConfig default_window{.k_departures = 5, .W_max_seconds = 1800, .lambda = 1.0f};
+    LookaheadConfig wide_window{.k_departures = 5, .W_max_seconds = 7200, .lambda = 1.0f};
+
+    ParetoDijkstra tight_router(graph, default_window);
+    ParetoDijkstra wide_router(graph, wide_window);
+
+    auto tight = tight_router.run(0, 28800);
+    auto wide  = wide_router.run(0, 28800);
+
+    ASSERT_TRUE(reached(tight, 2)) << "A 300s wait is well inside the default window";
+    ASSERT_TRUE(reached(wide, 2));
+
+    ASSERT_EQ(tight.pareto_sets[2].labels().size(), wide.pareto_sets[2].labels().size());
+    EXPECT_EQ(tight.pareto_sets[2].labels().front()->arrival_time,
+              wide.pareto_sets[2].labels().front()->arrival_time)
+        << "At metro headways the bounded-wait window must have no observable effect";
 }

@@ -419,7 +419,7 @@ void GTFSParser::interpolate_stop_times() {
 }
 
 // ── load_calendar ─────────────────────────────────────────────────────────
-// C7: Some GTFS feeds use ONLY calendar_dates.txt and have no calendar.txt.
+// Some GTFS feeds use ONLY calendar_dates.txt and have no calendar.txt.
 // This method gracefully handles absence of the file and emits an informational
 // message rather than throwing. Call load_calendar_dates() as well — whichever
 // file exists will provide service schedule data.

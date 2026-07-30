@@ -32,10 +32,10 @@ jobs:
           sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
 
       # ── 3. Generate synthetic GTFS data ───────────────────────────────────
-      # CI FIX: Without real GTFS data the benchmark falls through to the
-      # synthetic 10-node graph hardcoded in main_bench.cpp. A green CI badge
-      # from a 10-node stub proves nothing about the parser or graph builder.
-      # Run the synthetic GTFS generator to exercise the full parsing pipeline.
+      # Without GTFS data the benchmark falls through to the 10-node fallback
+      # graph hardcoded in main_bench.cpp, and a green badge earned that way
+      # proves nothing about the parser or the graph builder. Generating a feed
+      # here forces CI through the full parsing pipeline.
       - name: Generate synthetic GTFS test data
         run: |
           mkdir -p data
@@ -82,16 +82,16 @@ jobs:
         run: ctest --output-on-failure --timeout 60
 
       # ── 9. FK-drop threshold check ────────────────────────────────────────
-      # CI FIX: Parser drops FK-orphaned rows with only a stderr warning. If
-      # 80% of stop_times are dropped, the graph is wrong but all tests still
-      # pass (synthetic fallback kicks in). Fail CI if drop rate exceeds 5%.
+      # The parser drops FK-orphaned rows with only a warning. If 80% of
+      # stop_times were dropped the graph would be wrong while every test still
+      # passed, since the fallback graph kicks in. Fail CI above a 5% drop rate.
       - name: Check GTFS FK-drop rate
         run: |
           python3 - <<'EOF'
           import subprocess, sys, re
-          # FIX: read BOTH streams. print_stats() writes to stdout (std::printf),
-          # not stderr, so the previous stderr-only grep never matched and this
-          # check silently skipped on every run. Anchor on the exact stat labels.
+          # Read BOTH streams: print_stats() writes to stdout (std::printf), not
+          # stderr, so a stderr-only grep matches nothing and this check would
+          # silently skip on every run. Anchor on the exact stat labels.
           r = subprocess.run(
               ["./build/routing_engine_benchmark", "./data"],
               capture_output=True, text=True, timeout=60

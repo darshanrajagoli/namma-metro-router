@@ -456,14 +456,27 @@ characterize the same tradeoff geometry without requiring structural isomorphism
 \end{remark}
 
 % ══════════════════════════════════════════════════════════════════════════
-\section{Memory Architecture: Zero-Allocation Routing Proof}
+\section{Memory Architecture: Allocation-Free Routing Proof}
 % ══════════════════════════════════════════════════════════════════════════
 
-\begin{proposition}[Allocation-Free Label Routing Invariant]
-    After the first warm-up query, all subsequent calls to
-    \texttt{ParetoDijkstra::run} make zero calls to the OS heap allocator
-    for \texttt{Label} objects. One small allocation per call is made for the
-    \texttt{QueryResult} vector shell (not for any \texttt{Label}).
+The engine exposes two overloads of the query entry point:
+\begin{center}
+\begin{tabular}{ll}
+\texttt{QueryResult run(src, dep)} & convenience; allocates a fresh result \\
+\texttt{void run(src, dep, QueryResult\& out)} & hot path; fills \texttt{out} in place \\
+\end{tabular}
+\end{center}
+The proposition below concerns the second overload, which is what the benchmark
+harness and any server integration should call. The first is a thin wrapper that
+default-constructs a \texttt{QueryResult} and delegates.
+
+\begin{proposition}[Allocation-Free Query Invariant]
+    \label{prop:alloc-free}
+    Let \texttt{out} be a \texttt{QueryResult} reused across successive calls to
+    \texttt{ParetoDijkstra::run(src, dep, out)} on a fixed graph. After the first
+    such call, every subsequent call performs \textbf{zero} calls to the OS heap
+    allocator: neither for \texttt{Label} objects, nor for the priority queue, nor
+    for any per-node frontier vector.
 \end{proposition}
 
 \begin{proof}[Proof sketch]
@@ -472,52 +485,57 @@ characterize the same tradeoff geometry without requiring structural isomorphism
               allocated from \texttt{ArenaAllocator}, a fixed-capacity
               pre-allocated slab. \texttt{allocate()} pops from an intrusive
               free list or advances a bump pointer — $O(1)$, no system call.
-              \texttt{reset()} restores the free list in $O(1)$.
+              \texttt{reset()} restores the free list in $O(1)$ and is the first
+              statement of \texttt{run()}, so labels from the previous query are
+              bulk-freed without touching the allocator.
 
-        \item \textbf{Priority queue.} \texttt{pq\_} is a private member
-              cleared via \texttt{while(!pq\_.empty()) pq\_.pop()} which reduces
-              size but never deallocates the internal vector. After the first
-              warm-up call reaches peak label count, the vector capacity is
-              never exceeded and no reallocation occurs.
+        \item \textbf{Priority queue.} \texttt{pq\_} is a private member. The
+              Dijkstra loop exits only when \texttt{pq\_} is drained, so it is
+              empty on entry (asserted) and empty on exit, and its internal vector
+              is never deallocated. After the first call reaches peak label count
+              its capacity is never exceeded and no reallocation occurs.
 
-        \item \textbf{Pareto sets.} \texttt{result\_pareto\_} is a private
-              member \texttt{vector<ParetoLabelSet>} sized to \texttt{num\_nodes}
-              at construction. Each \texttt{ParetoLabelSet::labels\_} grows
-              during the first warm-up call to its peak size ($\le k_{\max}$)
-              and is never re-allocated thereafter.
+        \item \textbf{Per-node frontiers.} \texttt{out.pareto\_sets} is resized to
+              \texttt{num\_nodes} only when its size differs — that is, on the
+              first call with a given \texttt{out}. Thereafter each
+              \texttt{ParetoLabelSet} is cleared by
+              \texttt{unsafe\_clear\_after\_arena\_reset()}, which calls
+              \texttt{labels\_.clear()}: size drops to zero, \emph{capacity is
+              retained}. Each frontier vector grows to its peak size
+              ($\le k_{\max}$) during the first call and is never reallocated
+              thereafter.
 
-        \item \textbf{Working buffers.} \texttt{best\_time\_} (reset via
-              \texttt{std::fill}) and \texttt{dest\_scratch\_} (cleared via
-              \texttt{clear()}) are private members pre-allocated at
-              construction. No per-call heap activity.
+              The \texttt{unsafe\_} prefix records a precondition, not a hazard:
+              the method deliberately skips returning each \texttt{Label} to the
+              arena, which is sound only because step 1's \texttt{arena\_->reset()}
+              has already reclaimed that memory in bulk. Calling it in any other
+              context would leak arena slots until the next reset.
 
-        \item \textbf{QueryResult return (one allocation per call).}
-              \texttt{result\_pareto\_} is moved into \texttt{QueryResult}
-              at the end of \texttt{run()}. \texttt{std::move} leaves the
-              source vector with \texttt{capacity() == 0} on all standard
-              library implementations; the subsequent \texttt{resize()} must
-              allocate a fresh buffer of $\sim|V| \times 24$ bytes
-              ($\approx 2.4$\,KB for BMRCL). This is \emph{one allocation
-              per call for the vector shell only} — no \texttt{Label} objects
-              are heap-allocated. This does not affect the correctness or the
-              latency of the routing algorithm itself; the allocation occurs
-              at function exit, after the RDTSCP measurement closes.
+        \item \textbf{Working buffers.} \texttt{dest\_scratch\_} is a private
+              member reserved at construction to the graph's maximum out-degree
+              (an $O(|V|)$ pass), so the per-expansion deduplication of
+              destination ids cannot reallocate even at a high-frequency
+              interchange node. It is cleared, never shrunk.
 
-              \begin{note}
-              To eliminate this allocation entirely, the API could be changed
-              to accept a \texttt{QueryResult\&} output parameter, allowing
-              \texttt{result\_pareto\_} to be swapped into the caller's buffer
-              in $O(1)$ with zero allocation. This is left as a future
-              improvement.
-              \end{note}
+        \item \textbf{Return path.} There is none: \texttt{out} is filled in place,
+              so no move, no post-move \texttt{resize()}, and no vector-shell
+              allocation occurs at function exit.
     \end{enumerate}
 
-    The \textbf{Label allocation invariant} therefore holds strictly after
-    warm-up: zero \texttt{malloc}/\texttt{new} calls for any \texttt{Label}
-    object in any timed sample. The single per-call vector-shell allocation
-    is an accepted cost of the by-value \texttt{QueryResult} API and does
-    not appear in the RDTSC-measured routing latency.
+    Every heap-touching operation in the query is therefore confined to the first
+    call with a given \texttt{out}; all later calls run entirely within
+    pre-existing capacity. Since the benchmark harness executes 1{,}000 warm-up
+    queries against the same reusable \texttt{QueryResult} before opening the
+    timed region, no timed sample contains an allocation.
 \end{proof}
+
+\begin{note}
+The by-value overload \texttt{QueryResult run(src, dep)} necessarily allocates:
+its fresh \texttt{QueryResult} has no capacity to reuse, so the first-call cost of
+Proposition~\ref{prop:alloc-free} is paid on \emph{every} invocation. It exists for
+one-off queries and for the test suite, where clarity outweighs allocation count.
+Quoting the allocation-free property while calling this overload would be incorrect.
+\end{note}
 
 % ══════════════════════════════════════════════════════════════════════════
 \section{Complexity Analysis}
@@ -548,8 +566,6 @@ characterize the same tradeoff geometry without requiring structural isomorphism
     \[
         O\!\left(k \cdot |E| \cdot \bigl(k + \log(k \cdot |V|)\bigr)\right).
     \]
-    For BMRCL ($k\le 16$, $|E|\approx 300$, $|V|\approx 60$):
-    pruning $\approx 76{,}800$ ops, heap $\approx 62{,}400$ ops.
     The pruning term dominates; quoting only the heap term understates the cost.
 
     The $O((|E|+|V|)\log|V|)$ factor is correct only for single-label Dijkstra
@@ -557,11 +573,27 @@ characterize the same tradeoff geometry without requiring structural isomorphism
     nodes are revisited up to $k$ times.
     \end{note}
 
-    For Namma Metro ($|V| \approx 60$, $|E| \approx 300$, $k \le 16$
-    empirically from the Pareto frontier size bound in \Cref{prop:frontier-bound}),
-    this yields approximately $300 \times 16 \times \log(16 \times 60)
-    \approx 300 \times 16 \times 10 = 48{,}000$ heap operations per query —
-    consistent with sub-millisecond latency targets at GHz clock rates.
+    \paragraph{Instantiation on the measured network.}
+    A caution on $|E|$: the CSR stores \emph{one edge per timetabled departure},
+    not one per neighbour, so $|E|$ scales with service frequency rather than with
+    station count. The 82-station Namma Metro topology at a 5-minute headway over
+    an 05:00--23:00 service day yields $|E| = 35{,}588$ — two orders of magnitude
+    above the $|E| \approx 300$ one would estimate from the physical track layout.
+    With $k \le 16$ (\Cref{prop:frontier-bound}) and $|V| = 82$:
+    \[
+        \underbrace{k^2 |E| = 9.1 \times 10^6}_{\text{pruning}}
+        \;+\;
+        \underbrace{k |E| \log_2(k|V|) \approx 5.9 \times 10^6}_{\text{heap}}
+        \;\approx\; 1.5 \times 10^7 \text{ operations.}
+    \]
+    The measured median query is $139.7\,\mu$s, or $\approx 6.0 \times 10^5$ cycles
+    at 4.29\,GHz — roughly $25\times$ below the bound. The gap is expected and
+    informative: $k \le 16$ is a worst-case frontier size, whereas typical
+    (origin, departure-time) pairs on a metro topology produce frontiers of one or
+    two labels, and the per-expansion destination deduplication collapses all
+    departures on a link into a single \texttt{select\_optimal\_departure} call.
+    The bound is therefore a ceiling on adversarial inputs, not a prediction of
+    typical cost.
 \end{proposition}
 
 \begin{proposition}[Pareto Frontier Size Bound]
@@ -580,9 +612,17 @@ characterize the same tradeoff geometry without requiring structural isomorphism
 
     \textbf{Arena sizing rule:} The arena capacity must satisfy
     $C \ge |V| \times k_{\max}$, where $k_{\max}$ is the maximum frontier
-    size. For BMRCL: $60 \times 16 = 960 \ll 65{,}536$. For Indian Railways
-    ($|V| \approx 8{,}000$, $k_{\max} \approx 16$): $128{,}000 > 65{,}536$
-    --- the arena would need resizing for nationwide deployment.
+    size. For the measured BMRCL network: $82 \times 16 = 1{,}312 \ll 65{,}536$,
+    so the default arena is oversized by roughly $50\times$ for the target
+    workload --- deliberately, since exhaustion throws.
+
+    The bound is slack for \emph{any} metro network: even a large multi-operator
+    system such as Tokyo's ($|V| \approx 2{,}200$) needs only $35{,}200$ slots.
+    It binds only at national-rail scale --- Indian Railways at
+    $|V| \approx 8{,}000$ would require $128{,}000 > 65{,}536$. That comparison is
+    included to locate the ceiling, not to propose a target: nothing in this
+    engine's data path is designed for intercity rail, which needs calendar
+    enforcement and transfer modelling this build does not implement.
 \end{proposition}
 
 % ── Bibliography ──────────────────────────────────────────────────────────

@@ -46,12 +46,12 @@ def main():
     write(os.path.join(data_dir, "stops.txt"), "\n".join(stops_lines) + "\n")
 
     # ── routes.txt ───────────────────────────────────────────────────────────
-    # Integration-Audit Item-3 fix: single linear chain means Pareto frontier
-    # never exceeds size 2 at any node — insert_and_dominate Step 3 (forward
-    # pruning loop) is never invoked with more than one label to evict. A broken
-    # implementation that inserts without pruning passes the oracle silently.
-    # Added R_EXPRESS (S00→S04→S09 via midpoint) with a different crowd profile
-    # so the Pareto frontier at S09 requires active multi-label forward pruning.
+    # Two routes, not one. On a single linear chain the Pareto frontier never
+    # exceeds size 2 at any node, so insert_and_dominate's forward-pruning loop
+    # is never invoked with more than one label to evict — an implementation that
+    # inserts without pruning would pass the oracle silently. R_EXPRESS
+    # (S00→S04→S09 via the midpoint) carries a different crowd profile, so the
+    # frontier at S09 requires active multi-label forward pruning to be correct.
     write(os.path.join(data_dir, "routes.txt"),
         "route_id,agency_id,route_short_name,route_long_name,route_type\n"
         "R_PURPLE,SYNTHETIC,Purple,Purple Line,1\n"
@@ -73,11 +73,11 @@ def main():
     write(os.path.join(data_dir, "trips.txt"), "\n".join(trips_lines) + "\n")
 
     # ── stop_times.txt ────────────────────────────────────────────────────────
-    # Integration-Audit Item-8 fix: all stops previously had arrival==departure
-    # (zero dwell). Some validators enforce arrival < departure for intermediate
-    # stops. Added 30s dwell: arrival = base + i*180, departure = base + i*180 + 30.
-    # This also makes travel_time = (arr[i+1]) - (dep[i]) = 180-30 = 150s per
-    # segment — more realistic than 180s.
+    # Stops carry a 30s dwell rather than arrival == departure: some GTFS
+    # validators enforce arrival < departure at intermediate stops.
+    #   arrival = base + i*180, departure = base + i*180 + 30
+    # This also yields travel_time = arr[i+1] - dep[i] = 180 - 30 = 150s per
+    # segment, which is more realistic than 180s.
     #
     # Express trips: stop only at S00 (origin), S04 (midpoint), S09 (terminus).
     # Lower crowd weight than Purple Line off-peak (h=7,8 before Gaussian peak),

@@ -185,18 +185,19 @@ namespace namma_metro
             ps.unsafe_clear_after_arena_reset(); // clears labels_ vector, no arena call
         }
 
-        // Alias under its original name for readability in the blocks below.
+        // Short alias for the frontier buffer, used throughout the loop below.
         auto &result_pareto = out.pareto_sets;
 
-        // v8 change: best_time_ removed entirely. It was written on every run() and
-        // every successful insertion but never READ for any correctness decision.
-        // The lazy deletion filter (TODO block below) uses result_pareto[node].labels()
-        // exclusively. best_time_ cost O(V) per std::fill + O(insertions) per run
-        // with zero algorithmic benefit. Removed.
+        // There is deliberately no per-node best-arrival-time cache here. In a
+        // single-objective Dijkstra such a cache drives the stale-label test, but
+        // in the bi-criteria setting the lazy-deletion filter below must consult
+        // the full frontier (result_pareto[node].labels()) — a scalar best-time
+        // would wrongly discard labels that trade arrival time for lower crowd.
+        // Maintaining one would cost O(V) per query and answer no question.
 
-        // Item-7/A7: pq_ is always empty at the end of run() — the Dijkstra loop
-        // exits only when pq_ is drained. The while-drain was dead code (0 iterations).
-        // Replaced with an assert to document and enforce the invariant.
+        // pq_ is always empty at the end of run(): the Dijkstra loop exits only
+        // when pq_ is drained. Assert the invariant rather than draining
+        // defensively, which would be a guaranteed-zero-iteration loop.
         assert(pq_.empty() && "pq_ must be empty at start of run(); previous run() did not drain");
 
         // ── Initialize source label ───────────────────────────────────────────
@@ -205,10 +206,10 @@ namespace namma_metro
 
         // Insert the source label into its Pareto set FIRST, then push a value
         // copy onto the priority queue. Insertion into an empty set is always
-        // non-dominated, so it must succeed. (An earlier version pushed before
-        // inserting only to stay alive while insert_and_dominate was a stub that
-        // always returned false; with the real implementation the natural
-        // insert-then-push order is correct.)
+        // non-dominated, so it must succeed. The ordering matters: the
+        // lazy-deletion filter below reads the frontier, so a label present in
+        // the queue but absent from the frontier would be indistinguishable from
+        // a stale one.
         const bool src_ok =
             result_pareto[source_node].insert_and_dominate(src_label, *arena_);
         assert(src_ok && "source label inserted into an empty set must succeed");
@@ -253,15 +254,15 @@ namespace namma_metro
             // ── Edge relaxation ───────────────────────────────────────────────
             auto [edge_begin, edge_end] = graph_.edges_of(current.node);
 
-            // H1: The CSR stores one edge per timetabled departure, NOT one per
-            // neighbor. A node with 20 daily departures to the same destination
-            // would trigger 20 select_optimal_departure() calls returning the
-            // same result, causing O(freq²) redundant arena allocs and
-            // insert_and_dominate calls. Collect unique destination IDs first.
+            // The CSR stores one edge per timetabled departure, NOT one per
+            // neighbour. A node with 20 daily departures to the same destination
+            // would otherwise trigger 20 select_optimal_departure() calls all
+            // returning the same result, costing O(freq²) redundant arena allocs
+            // and insert_and_dominate calls. Collect unique destination ids first.
             //
-            // Item-6/B6 fix: use member dest_scratch_ (reserved at construction)
-            // instead of a fresh std::vector per expansion. This eliminates one
-            // malloc+free per node pop from the hot benchmark path.
+            // dest_scratch_ is a member reserved to the graph's maximum out-degree
+            // at construction, not a fresh std::vector per expansion: that would
+            // be one malloc+free per node pop on the hot path.
             dest_scratch_.clear(); // clears size, preserves capacity — no alloc
             {
                 uint32_t prev_dest = UINT32_MAX;
@@ -285,10 +286,11 @@ namespace namma_metro
 
             for (uint32_t dest : dest_scratch_)
             {
-                // M1: select_optimal_departure's k_departures limit must count
-                // only edges to this specific destination. The implementation
-                // inside select_optimal_departure() must filter by destination
-                // before counting toward the k budget — see routing.hpp §3.
+                // select_optimal_departure's k_departures budget counts only edges
+                // to this specific destination — it filters by destination before
+                // counting, so a busy interchange cannot exhaust k on edges bound
+                // elsewhere before examining a single edge to `dest`.
+                // See routing.hpp §3.
                 auto opt_edge = select_optimal_departure(
                     graph_, config_, current.arrival_time, current.node, dest);
 

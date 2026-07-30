@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
             std::printf("[OK] RDTSCP supported — cycle-accurate timing available.\n");
         }
 
-        // ── Integration-Audit Item-9 FIX: InvariantTSC check ─────────────
+        // ── InvariantTSC check ───────────────────────────────────────────
         // On WSL2 (Hyper-V virtualized), TSC may be emulated. Without
         // InvariantTSC, TSC frequency can vary under C/P-state transitions or
         // VM scheduling. calibrate_tsc_ns() will return a wrong ticks_per_ns
@@ -181,11 +181,10 @@ int main(int argc, char* argv[]) {
     const double ticks_per_ns = namma_metro::bench::calibrate_tsc_ns(100);
     std::printf("      TSC frequency: %.3f GHz\n", ticks_per_ns);
 
-    // ── Integration-Audit Item-1 FIX: router declared HERE, before Step 4 ──
-    // The original code declared `router` at Step 5 but called
-    // router.prefault_arena() at Step 4 — compile error on any clean build.
-    // Stale cached binaries "worked" but had no arena pre-faulting, silently
-    // inflating every timed sample with OS page-fault latency.
+    // The router is constructed HERE, before Step 4, because Step 4 calls
+    // router.prefault_arena(). Pre-faulting must happen before any timed sample:
+    // otherwise the first touch of each arena page takes an OS page fault inside
+    // the measured region.
     namma_metro::LookaheadConfig config{
         .k_departures  = 5,
         .W_max_seconds = 1800,
@@ -206,17 +205,15 @@ int main(int argc, char* argv[]) {
     std::uniform_int_distribution<uint32_t> node_dist(0, graph.num_nodes - 1);
     std::uniform_int_distribution<uint32_t> time_dist(25200, 75600); // 07:00 - 21:00
 
-    // Pre-screen for reachable query pairs (M4 FIX).
+    // Pre-screen for reachable query pairs.
     // Random (src, dep) pairs often fall outside service windows and produce
     // empty-frontier results that exhaust the PQ in microseconds, deflating
     // p50/p95 and making published numbers misleadingly fast.
     //
-    // ── Integration-Audit Item-5 FIX: NO reset_arena() after run() ───────
-    // arena_->reset() is the FIRST statement inside run(). Calling
-    // reset_arena() explicitly AFTER run() invalidates all Label* pointers
-    // inside the returned QueryResult — dangling pointer reads on any
-    // subsequent path reconstruction. The arena is self-resetting; the
-    // explicit external calls are removed throughout this file.
+    // Note there are no reset_arena() calls anywhere in this file: arena_->reset()
+    // is the FIRST statement inside run(). Calling reset_arena() externally AFTER
+    // a run() would invalidate every Label* inside the returned QueryResult,
+    // turning any later path reconstruction into a dangling-pointer read.
     std::printf("      Pre-screening query pairs for reachability...\n");
     struct QueryPair { uint32_t src; uint32_t dep; };
     std::vector<QueryPair> valid_queries;
@@ -226,8 +223,8 @@ int main(int argc, char* argv[]) {
         std::uniform_int_distribution<uint32_t> snode(0, graph.num_nodes - 1);
         std::uniform_int_distribution<uint32_t> stime(25200, 75600);
 
-        // Integration-Audit Item-10 FIX: valid_queries.size() is std::size_t
-        // (unsigned). Comparing with int literal 500 generates -Wsign-compare.
+        // std::size_t, not int: valid_queries.size() is unsigned, and comparing
+        // it against an int literal trips -Wsign-compare.
         constexpr std::size_t TARGET_PAIRS = 500;
         for (int attempt = 0; attempt < 2000 && valid_queries.size() < TARGET_PAIRS; ++attempt) {
             const uint32_t s = snode(screen_rng);
@@ -270,7 +267,7 @@ int main(int argc, char* argv[]) {
 
     stats.print();
 
-    // ── VM-exit outlier diagnostic (Item-9) ──────────────────────────────
+    // ── VM-exit outlier diagnostic ───────────────────────────────────────
     // If max_ns / p99_ns > 10, a VM exit or OS preemption contaminated at
     // least one sample. p99 does not represent routing latency in that case.
     if (stats.max_ns > stats.p99_ns * 10.0) {

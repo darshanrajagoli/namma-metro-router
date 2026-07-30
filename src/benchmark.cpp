@@ -2,10 +2,9 @@
  * @file benchmark.cpp
  * @brief Implementations of calibrate_tsc_ns() and compute_percentiles().
  *
- * C2 FIX: benchmark.hpp declares these as non-inline, non-template functions
- * but no translation unit provided their definitions — causing "undefined
- * reference" linker failures for routing_engine_benchmark. They live here and
- * are compiled into namma_metro_core (see CMakeLists.txt).
+ * benchmark.hpp declares these as non-inline, non-template functions, so exactly
+ * one translation unit must define them. That unit is this one; it is compiled
+ * into namma_metro_core (see CMakeLists.txt).
  */
 
 #include "benchmark.hpp"

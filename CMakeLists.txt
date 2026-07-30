@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 project(NammaMetroRouter VERSION 1.0.0 LANGUAGES CXX)
 
 # ─────────────────────────────────────────────
-# C++17 standard — mandatory per CLAUDE.md
+# C++17: designated initializers in tests are a C++20 extension GCC accepts,
+# but nothing in the engine requires a later standard.
 # ─────────────────────────────────────────────
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,7 +24,8 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 set(COMMON_FLAGS "-Wall -Wextra -Wpedantic -Wshadow -Wno-unused-parameter")
 
 # Release: maximum vectorization + native ISA (AVX2 on Dell G15 i7-12700H)
-# M5 FIX: -ffast-math enables -funsafe-math-optimizations which may reassociate
+# -ffast-math is deliberately NOT used: it enables -funsafe-math-optimizations,
+# which may reassociate
 # the composite cost formula (wait + travel + lambda*crowd + penalty), changing
 # which train is selected at boundary conditions. The FIFO proof and test suite
 # verify Debug builds (no -ffast-math) — the Release build must match.
@@ -55,7 +57,7 @@ add_library(namma_metro_core STATIC
   src/gtfs_parser.cpp
   src/graph_builder.cpp
   src/routing.cpp
-  src/benchmark.cpp   # C2 FIX: calibrate_tsc_ns + compute_percentiles definitions
+  src/benchmark.cpp   # calibrate_tsc_ns + compute_percentiles definitions
 )
 target_include_directories(namma_metro_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
 

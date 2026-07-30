@@ -348,11 +348,11 @@ namespace namma_metro
     class ParetoDijkstra
     {
     public:
-        // M2: ArenaAllocator<Label> at default capacity = 65536 × 16 bytes = 1 MB.
-        // As a value member this sits on the stack of whatever thread constructs
-        // ParetoDijkstra. Main thread (8 MB stack) survives; any worker thread or
-        // CI container with a smaller stack silently overflows on construction.
-        // Heap-allocate unconditionally via unique_ptr.
+        // ArenaAllocator<Label> at default capacity = 65536 × 16 bytes = 1 MB.
+        // Held via unique_ptr rather than by value: as a value member it would sit
+        // on the stack of whatever thread constructs ParetoDijkstra. The main
+        // thread (8 MB stack) survives that, but a worker thread or a CI container
+        // with a smaller stack would overflow silently at construction.
         explicit ParetoDijkstra(const CSRGraph &graph, LookaheadConfig config = {})
             : graph_(graph), config_(config), arena_(std::make_unique<ArenaAllocator<Label>>())
         {
@@ -395,11 +395,11 @@ namespace namma_metro
 
         using MinHeap = std::priority_queue<Label, std::vector<Label>, std::greater<Label>>;
 
-        // Item-7/A7 fix: member so the underlying std::vector retains its heap
-        // capacity across queries. pq_ is always empty at the end of run() (the
-        // Dijkstra loop exits only when the queue is drained). The historical
-        // while(!pq_.empty()) drain is therefore a no-op replaced by an assert.
-        // See routing.cpp run() for the assert.
+        // A member, not a local, so the underlying std::vector retains its heap
+        // capacity across queries — a local would allocate on every call. pq_ is
+        // always empty at the end of run(), since the Dijkstra loop exits only
+        // when the queue is drained; run() asserts that invariant on entry rather
+        // than draining defensively.
         MinHeap pq_;
 
         // dest_scratch_: unique-destination scratch buffer; reserved at construction

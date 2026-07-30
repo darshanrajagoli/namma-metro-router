@@ -66,15 +66,14 @@ static std::vector<PathLabel> prune(std::vector<PathLabel> frontier) {
 }
 
 // DFS oracle: enumerate all simple paths from source to dest.
-// M3 FIX: The original oracle used strict next-train policy
-// (if departure_time < current_time: skip). This diverges from
-// select_optimal_departure() which uses Bounded-Wait Lookahead:
-// it may deliberately SKIP the earliest available train and board
-// a later one with lower crowd cost.
+// The oracle must NOT model a strict next-train policy. The engine uses
+// Bounded-Wait Lookahead and may deliberately skip the earliest available
+// train to board a later, less crowded one; an oracle that always takes the
+// first departure would disagree with correct engine output.
 //
-// Fix: use exhaustive enumeration — try EVERY edge regardless of
-// departure order, as long as it departs >= current_time and within
-// W_max (1800s). This matches the engine's semantic exactly:
+// So: exhaustive enumeration — try EVERY edge regardless of departure
+// order, as long as it departs >= current_time and within W_max (1800s).
+// This matches the engine's semantic exactly:
 // the oracle finds ALL reachable (time, crowd) Pareto outcomes, not
 // just those reachable via the first available train.
 static void dfs_oracle(
@@ -143,11 +142,11 @@ static CSRGraph build_diamond_graph() {
     for (uint32_t i = 1; i <= g.num_nodes; ++i) g.offset[i] += g.offset[i-1];
     g.num_edges = static_cast<uint32_t>(g.edge_data.size());
 
-    // Integration-Audit Item-7 fix: sort edges by departure_time within each
-    // source node. select_optimal_departure's lower_bound requires this ordering.
-    // The diamond graph passes currently only because both node-0 edges share
-    // departure_time=100 (lower_bound is insensitive to ties). Any future test
-    // with out-of-order edges will silently corrupt the binary search.
+    // Sort edges by departure_time within each source node: this is the ordering
+    // select_optimal_departure's lower_bound depends on. The diamond graph would
+    // pass without it only by luck, since both node-0 edges share
+    // departure_time=100 and lower_bound is insensitive to ties. Any later test
+    // with out-of-order edges would silently corrupt the binary search.
     for (uint32_t u = 0; u < g.num_nodes; ++u) {
         auto* b = g.edge_data.data() + g.offset[u];
         auto* e = g.edge_data.data() + g.offset[u + 1];
@@ -226,15 +225,15 @@ TEST(ParetoOracle, DiamondGraph_BothPathsPresent) {
 }
 
 TEST(ParetoOracle, DisconnectedDestination_ReturnsEmpty) {
-    // Integration-Audit Item-5 fix: original test queried run(3, 100) — source IS
-    // node 3 (the sink). result.pareto_sets[0] is trivially empty for ANY query
-    // whose source is not 0, so this test passed even if the engine crashed or
-    // returned all-empty frontiers everywhere. It validated nothing.
+    // The query must originate from a node with outgoing edges (node 0), and the
+    // assertion must pair an empty frontier with a NON-empty one. Querying from
+    // the sink and asserting only that some frontier is empty would pass even if
+    // the engine returned empty frontiers everywhere, or crashed the search —
+    // an empty result is the default, so it proves nothing on its own.
     //
-    // Fix: query from node 0 (has outgoing edges). Add node 4 with no incoming
-    // edges from the connected component. Assert pareto_sets[4] is empty
-    // (unreachable) while pareto_sets[3] is NON-empty (reachable via 0→1→3 or
-    // 0→2→3). This verifies both reachability AND correct disconnected handling.
+    // Here: node 4 has no path from node 0, so pareto_sets[4] must be empty,
+    // while pareto_sets[3] must be non-empty (reachable via 0→1→3 or 0→2→3).
+    // That pairing tests reachability and disconnected handling together.
     CSRGraph g = build_diamond_graph();
 
     // Extend to 5 nodes: node 4 has no incoming edges and no path from node 0.
