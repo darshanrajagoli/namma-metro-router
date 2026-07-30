@@ -51,3 +51,4 @@ results/*.csv
 # Local-only working notes — never publish to the portfolio repo
 ANALYSIS.md
 WORKFLOW.md
+RESUME_PROMPT.md
