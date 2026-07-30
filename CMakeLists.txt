@@ -68,6 +68,41 @@ add_executable(routing_engine_benchmark src/main_bench.cpp)
 target_link_libraries(routing_engine_benchmark PRIVATE namma_metro_core)
 
 # ─────────────────────────────────────────────
+# A/B baseline executable (opt-in, not built by default)
+# ─────────────────────────────────────────────
+# Same sources, same flags, one macro different: NAMMA_BASELINE_HEAP_ALLOC makes
+# every Label come from operator new and every query return its result by value.
+# It exists so the arena + output-parameter API can be MEASURED against the
+# straightforward implementation instead of merely asserted to be faster.
+#
+# It compiles its own copy of the core sources rather than linking
+# namma_metro_core, because the macro changes header-inlined allocator code that
+# the shared library was already compiled without. Keeping it a separate target
+# guarantees the shipping binary is unaffected -- no runtime branch, no ODR
+# violation from mixing the two.
+#
+#   cmake -S . -B build -DBUILD_BASELINE=ON
+#   ./build/routing_engine_baseline ./data
+# tools/diag — reports Pareto frontier sizes and lambda sensitivity. This is what
+# produced the "Measured Behaviour" section of the README; it is how you check
+# whether the bi-criteria machinery is actually load-bearing on a given feed.
+add_executable(routing_engine_diag tools/diag.cpp)
+target_link_libraries(routing_engine_diag PRIVATE namma_metro_core)
+
+option(BUILD_BASELINE "Build the heap-allocation A/B baseline binary" OFF)
+if(BUILD_BASELINE)
+  add_executable(routing_engine_baseline
+    src/main_bench.cpp
+    src/gtfs_parser.cpp
+    src/graph_builder.cpp
+    src/routing.cpp
+    src/benchmark.cpp
+  )
+  target_compile_definitions(routing_engine_baseline PRIVATE NAMMA_BASELINE_HEAP_ALLOC)
+  target_include_directories(routing_engine_baseline PRIVATE ${CMAKE_SOURCE_DIR}/include)
+endif()
+
+# ─────────────────────────────────────────────
 # Google Test via FetchContent (auto-downloaded)
 # ─────────────────────────────────────────────
 include(FetchContent)
@@ -94,6 +129,7 @@ add_executable(namma_metro_tests
   tests/test_arena.cpp
   tests/test_pareto_oracle.cpp
   tests/test_fifo_invariant.cpp
+  tests/test_transfers.cpp
 )
 target_link_libraries(namma_metro_tests
   PRIVATE

@@ -37,7 +37,7 @@ protected:
      * Node 0 = source station (e.g., Majestic)
      * Node 1 = destination station (e.g., MG Road)
      *
-     * @param edges_u0  List of {departure_time, travel_time, crowd_weight, penalty}
+     * @param edges_u0  List of {departure_time, travel_time, secondary_weight, penalty}
      *                  tuples for edges from node 0 to node 1.
      */
     void build_graph(std::vector<std::tuple<uint32_t,uint32_t,uint32_t,uint32_t>> edges_u0) {
@@ -49,7 +49,7 @@ protected:
             e.destination    = 1;
             e.departure_time = dep;
             e.travel_time    = trav;
-            e.crowd_weight   = crowd;
+            e.secondary_weight   = crowd;
             e.penalty        = pen;
             graph.edge_data.push_back(e);
         }
@@ -155,8 +155,8 @@ TEST_F(BoundedWaitTest, OffPeak_WaitingForSecondTrain_IsOptimal) {
            "If your implementation selects Train A, you have implemented "
            "strict next-train (wrong). Implement the Bounded-Wait Lookahead.";
 
-    EXPECT_EQ(result->crowd_weight, 100u)
-        << "Selected edge should have crowd_weight=100 (Train B)";
+    EXPECT_EQ(result->secondary_weight, 100u)
+        << "Selected edge should have secondary_weight=100 (Train B)";
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -222,7 +222,7 @@ TEST_F(BoundedWaitTest, KDeparturesLimitRespected) {
     auto result = select_optimal_departure(graph, k3_config, current_time, 0, 1);
 
     ASSERT_TRUE(result.has_value());
-    // composite = travel_time + lambda*crowd_weight + penalty, lambda = 1:
+    // composite = travel_time + lambda*secondary_weight + penalty, lambda = 1:
     //   index 0: 300 + 500 + 20 = 820
     //   index 1: 310 + 490 + 18 = 818
     //   index 2: 290 + 480 + 15 = 785  ← minimum among the first k=3
@@ -327,14 +327,14 @@ protected:
         leg0.destination    = 1;
         leg0.departure_time = dep0;
         leg0.travel_time    = 300;
-        leg0.crowd_weight   = 100;
+        leg0.secondary_weight   = 100;
         leg0.penalty        = 0;
 
         Edge leg1;
         leg1.destination    = 2;
         leg1.departure_time = dep1;
         leg1.travel_time    = 300;
-        leg1.crowd_weight   = 100;
+        leg1.secondary_weight   = 100;
         leg1.penalty        = 0;
 
         graph.edge_data = {leg0, leg1};

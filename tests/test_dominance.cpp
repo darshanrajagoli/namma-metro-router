@@ -22,7 +22,7 @@
  *
  * INVARIANTS verified by these tests:
  *   1. After any insert, labels_ is sorted ascending by arrival_time.
- *   2. After any insert, crowd_cost is strictly DECREASING across labels_.
+ *   2. After any insert, secondary_cost is strictly DECREASING across labels_.
  *   3. Memory is correctly returned to the arena when a label is dominated.
  *   4. insert_and_dominate returns true iff the label was NOT dominated.
  */
@@ -68,7 +68,7 @@ TEST_F(ParetoSetTest, InsertIntoEmptySet_Succeeds) {
     EXPECT_TRUE(inserted) << "Insertion into empty set must always succeed";
     EXPECT_EQ(pset.size(), 1u);
     EXPECT_EQ(pset.labels()[0]->arrival_time, 100u);
-    EXPECT_EQ(pset.labels()[0]->crowd_cost,   50u);
+    EXPECT_EQ(pset.labels()[0]->secondary_cost,   50u);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ TEST_F(ParetoSetTest, BetterOnBothCriteria_DominatesExisting) {
     EXPECT_EQ(pset.size(), 1u)
         << "The dominated (100, 50) label must have been pruned from the set";
     EXPECT_EQ(pset.labels()[0]->arrival_time, 80u);
-    EXPECT_EQ(pset.labels()[0]->crowd_cost,   30u);
+    EXPECT_EQ(pset.labels()[0]->secondary_cost,   30u);
 
     // Arena should hold exactly 1 label (existing was freed during pruning)
     EXPECT_EQ(arena.used_count(), 1u)
@@ -141,9 +141,9 @@ TEST_F(ParetoSetTest, ParetoIncomparable_BothSurvive) {
     // crowd must go 50 → 20, i.e. labels[0]->crowd > labels[1]->crowd.
     // If labels[0]->crowd <= labels[1]->crowd, the right-hand label is dominated
     // and should have been pruned. Check your Step 3 forward pruning logic.
-    EXPECT_GT(pset.labels()[0]->crowd_cost, pset.labels()[1]->crowd_cost)
+    EXPECT_GT(pset.labels()[0]->secondary_cost, pset.labels()[1]->secondary_cost)
         << "Pareto invariant broken: sorted by arrival_time ascending, "
-           "crowd_cost must be strictly DECREASING. "
+           "secondary_cost must be strictly DECREASING. "
            "Expected labels[0]->crowd(50) > labels[1]->crowd(20).";
 }
 
@@ -191,9 +191,9 @@ TEST_F(ParetoSetTest, BulkForwardPruning_RemovesMultipleLabels) {
            "Your implementation may be missing the forward pruning loop (Step 3).";
 
     EXPECT_EQ(pset.labels()[0]->arrival_time, 100u);
-    EXPECT_EQ(pset.labels()[0]->crowd_cost,    60u);
+    EXPECT_EQ(pset.labels()[0]->secondary_cost,    60u);
     EXPECT_EQ(pset.labels()[1]->arrival_time, 150u);
-    EXPECT_EQ(pset.labels()[1]->crowd_cost,    5u);
+    EXPECT_EQ(pset.labels()[1]->secondary_cost,    5u);
 
     EXPECT_EQ(arena.used_count(), 2u)
         << "3 pruned labels must have been deallocated to arena";
@@ -238,7 +238,7 @@ TEST_F(ParetoSetTest, Clear_ReturnsAllLabelsToArena) {
 // This is the case that would PASS a broken implementation missing Step 2b:
 //   lower_bound lands on the existing label (100,30). it != begin is false
 //   (or the existing label IS at begin), so Step 2 is skipped. Without Step 2b,
-//   Step 3's condition (*it)->crowd_cost >= new_label->crowd_cost becomes
+//   Step 3's condition (*it)->secondary_cost >= new_label->secondary_cost becomes
 //   30 >= 50 = false, so Step 3 does not prune. The new worse label gets
 //   inserted BEFORE the existing better label, violating the Pareto invariant.
 // ─────────────────────────────────────────────────────────────────────────
@@ -255,7 +255,7 @@ TEST_F(ParetoSetTest, SameTime_WorseCrowd_IsRejectedByStep2b) {
         << "Set must still contain exactly 1 label after rejecting the worse-crowd duplicate";
     ASSERT_FALSE(pset.labels().empty());
     EXPECT_EQ(pset.labels()[0]->arrival_time, 100u);
-    EXPECT_EQ(pset.labels()[0]->crowd_cost,   30u)
+    EXPECT_EQ(pset.labels()[0]->secondary_cost,   30u)
         << "The surviving label must be the BETTER one (crowd=30), not the worse (crowd=50)";
     EXPECT_EQ(arena.used_count(), 1u)
         << "Rejected label must be deallocated — arena leak detected";
@@ -284,7 +284,7 @@ TEST_F(ParetoSetTest, DominatesAllExisting_EntireSetCleared) {
         << "All three existing labels must have been pruned by (100,5)";
     ASSERT_FALSE(pset.labels().empty());
     EXPECT_EQ(pset.labels()[0]->arrival_time, 100u);
-    EXPECT_EQ(pset.labels()[0]->crowd_cost,   5u);
+    EXPECT_EQ(pset.labels()[0]->secondary_cost,   5u);
     EXPECT_EQ(arena.used_count(), 1u)
         << "All three evicted labels must be deallocated — arena leak detected";
     EXPECT_TRUE(arena.check_invariant());
@@ -314,14 +314,14 @@ TEST_F(ParetoSetTest, InsertOrderCommutativity_ABequalsBA) {
 
     // Both sets must contain the same labels (sorted by arrival_time)
     EXPECT_EQ(pset_ab.labels()[0]->arrival_time, 100u);
-    EXPECT_EQ(pset_ab.labels()[0]->crowd_cost,   80u);
+    EXPECT_EQ(pset_ab.labels()[0]->secondary_cost,   80u);
     EXPECT_EQ(pset_ab.labels()[1]->arrival_time, 200u);
-    EXPECT_EQ(pset_ab.labels()[1]->crowd_cost,   10u);
+    EXPECT_EQ(pset_ab.labels()[1]->secondary_cost,   10u);
 
     EXPECT_EQ(pset_ba.labels()[0]->arrival_time, pset_ab.labels()[0]->arrival_time);
-    EXPECT_EQ(pset_ba.labels()[0]->crowd_cost,   pset_ab.labels()[0]->crowd_cost);
+    EXPECT_EQ(pset_ba.labels()[0]->secondary_cost,   pset_ab.labels()[0]->secondary_cost);
     EXPECT_EQ(pset_ba.labels()[1]->arrival_time, pset_ab.labels()[1]->arrival_time);
-    EXPECT_EQ(pset_ba.labels()[1]->crowd_cost,   pset_ab.labels()[1]->crowd_cost);
+    EXPECT_EQ(pset_ba.labels()[1]->secondary_cost,   pset_ab.labels()[1]->secondary_cost);
 
     // Cleanup — clear both sets manually to satisfy TearDown arena invariant
     pset_ab.clear(arena);

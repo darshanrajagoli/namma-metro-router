@@ -100,7 +100,7 @@ def main():
             )
 
     # Express Line: S00 → S04 → S09 with 8-minute segment travel time
-    # crowd_weight injected via stop_times headsign field is not standard —
+    # secondary_weight injected via stop_times headsign field is not standard —
     # crowd weights come from GraphBuilder using time-of-day Gaussian.
     # We control crowd indirectly via departure time (earlier = lower crowd).
     express_segment_travel = 8 * 60  # 8 min per express segment (vs 6×3=18 for Purple)

@@ -43,6 +43,16 @@ int main(int argc, char* argv[]) {
     std::printf("║  Namma Metro Routing Engine — Benchmark Harness  ║\n");
     std::printf("╚══════════════════════════════════════════════════╝\n\n");
 
+#ifdef NAMMA_BASELINE_HEAP_ALLOC
+    std::printf(
+        "  ****************************************************************\n"
+        "  *  BASELINE BUILD (NAMMA_BASELINE_HEAP_ALLOC)                  *\n"
+        "  *  Labels come from operator new; results are returned by      *\n"
+        "  *  value. These are the \"before\" numbers for the arena A/B     *\n"
+        "  *  comparison -- NOT the engine's real performance.            *\n"
+        "  ****************************************************************\n\n");
+#endif
+
     // ── RDTSC and TSC feature detection ──────────────────────────────────
     {
         uint32_t eax, ebx, ecx, edx;
@@ -122,6 +132,7 @@ int main(int argc, char* argv[]) {
         parser.load_stop_times();
         parser.load_calendar();
         parser.load_calendar_dates();
+        parser.load_transfers();
         parser.interpolate_stop_times();
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[WARN] GTFS load failed: %s\n", e.what());
@@ -137,10 +148,18 @@ int main(int argc, char* argv[]) {
     const auto& stop_times = parser.stop_times();
 
     if (!stop_times.empty()) {
-        graph = namma_metro::GraphBuilder::build(
+        // A feed that ships transfers.txt is one where platforms are distinct
+        // nodes and changing lines is a real, costed action, so the second Pareto
+        // objective becomes transfer count. Without transfers there is nothing to
+        // count and the crowd model remains the second objective.
+        const bool has_transfers = !parser.transfers().empty();
+        graph = namma_metro::GraphBuilder::build_with_transfers(
             stop_times,
             static_cast<uint32_t>(parser.stops().size()),
-            &parser.stop_index_map()
+            &parser.stop_index_map(),
+            parser.transfers(),
+            has_transfers ? namma_metro::SecondObjective::TransferCount
+                          : namma_metro::SecondObjective::CrowdExposure
         );
     } else {
         // Loud, unmissable banner: a real feed that fails to load produces an
@@ -163,7 +182,7 @@ int main(int argc, char* argv[]) {
             e.destination    = u + 1;
             e.departure_time = 28800 + u * 360;
             e.travel_time    = 300;
-            e.crowd_weight   = 100 + u * 50;
+            e.secondary_weight   = 100 + u * 50;
             e.penalty        = 0;
             graph.edge_data.push_back(e);
             graph.offset[u + 1] = static_cast<uint32_t>(graph.edge_data.size());
@@ -172,9 +191,13 @@ int main(int argc, char* argv[]) {
         graph.num_edges = static_cast<uint32_t>(graph.edge_data.size());
     }
 
-    std::printf("      Nodes: %u | Edges: %u | Memory: %.1f KB\n",
-        graph.num_nodes, graph.num_edges,
+    std::printf("      Nodes: %u | Edges: %u | Transfers: %u | Memory: %.1f KB\n",
+        graph.num_nodes, graph.num_edges, graph.num_transfers,
         graph.memory_bytes() / 1024.0);
+    std::printf("      Second objective: %s\n",
+        graph.second_objective == namma_metro::SecondObjective::TransferCount
+            ? "transfer count (time vs. number of line changes)"
+            : "crowd exposure (time vs. modelled crowding)");
 
     // ── Step 3: Calibrate TSC ─────────────────────────────────────────────
     std::printf("[3/5] Calibrating TSC frequency (100ms busy-wait) ...\n");
@@ -251,6 +274,17 @@ int main(int argc, char* argv[]) {
 
     std::uniform_int_distribution<std::size_t> qidx(0, valid_queries.size() - 1);
 
+#ifdef NAMMA_BASELINE_HEAP_ALLOC
+    // Baseline build: the by-value overload, which allocates a fresh QueryResult
+    // (and therefore a fresh frontier vector per reached node) on every call.
+    // Paired with heap-allocated Labels, this is the whole "before" picture.
+    auto stats = namma_metro::bench::run_benchmark(
+        [&]() {
+            const auto& q = valid_queries[qidx(rng)];
+            auto result = router.run(q.src, q.dep);
+            __asm__ volatile("" : : "r"(&result) : "memory");
+        },
+#else
     namma_metro::QueryResult reusable; // persistent buffers -> zero allocations in the timed loop
     auto stats = namma_metro::bench::run_benchmark(
         [&]() {
@@ -260,6 +294,7 @@ int main(int argc, char* argv[]) {
             // asm barrier prevents the compiler from eliding router.run().
             __asm__ volatile("" : : "r"(&reusable) : "memory");
         },
+#endif
         ticks_per_ns,
         /*n_queries=*/10'000,
         /*n_warmup=*/ 1'000

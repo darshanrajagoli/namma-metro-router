@@ -476,6 +476,64 @@ void GTFSParser::load_calendar_dates(const std::string& filename) {
         "(service day filtering not yet enforced — all trips included).\n", count);
 }
 
+// ── load_transfers ────────────────────────────────────────────────────────
+// Optional file. Positional layout written by scripts/normalize_gtfs.py:
+//   from_stop_id,to_stop_id,min_transfer_time
+// A feed without transfers.txt simply leaves the transfer layer empty, which
+// the graph builder and router both handle as "no transfers exist".
+
+void GTFSParser::load_transfers(const std::string& filename) {
+    std::ifstream f(resolve_path(filename));
+    if (!f.is_open()) {
+        std::fprintf(stderr,
+            "[GTFS INFO] %s not found — no transfer layer. Line changes will cost "
+            "zero time.\n", resolve_path(filename).c_str());
+        return;
+    }
+
+    std::string header_line, line;
+    std::getline(f, header_line);
+
+    uint32_t dropped_fk = 0, dropped_fmt = 0, self_loops = 0;
+
+    while (std::getline(f, line)) {
+        if (line.empty() || line == "\r") continue;
+        auto fields = split_csv_line(line);
+        if (fields.size() < 3) { ++dropped_fmt; continue; }
+
+        TransferRecord r;
+        r.from_stop_id = fields[0];
+        r.to_stop_id   = fields[1];
+
+        // A transfer to the platform you are already standing on is a no-op that
+        // would add a zero-length self-edge to every node, so drop it here rather
+        // than let the router waste an expansion on it every query.
+        if (r.from_stop_id == r.to_stop_id) { ++self_loops; continue; }
+
+        try {
+            r.min_transfer_time = static_cast<uint32_t>(std::stoul(fields[2]));
+        } catch (const std::exception&) {
+            ++dropped_fmt;
+            continue;
+        }
+
+        // Same FK discipline as every other loader: a transfer naming a stop that
+        // stops.txt never defined would resolve to a garbage node index.
+        if (valid_stop_ids_.find(r.from_stop_id) == valid_stop_ids_.end() ||
+            valid_stop_ids_.find(r.to_stop_id)   == valid_stop_ids_.end()) {
+            ++dropped_fk;
+            continue;
+        }
+
+        transfers_.push_back(std::move(r));
+    }
+
+    std::fprintf(stderr,
+        "[GTFS INFO] transfers.txt: %zu transfers loaded"
+        " (dropped: %u bad FK, %u malformed, %u self-loops).\n",
+        transfers_.size(), dropped_fk, dropped_fmt, self_loops);
+}
+
 void GTFSParser::print_stats() const {
     std::printf(
         "\n╔══════════════════════════════════════╗\n"

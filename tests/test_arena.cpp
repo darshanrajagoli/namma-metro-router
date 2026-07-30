@@ -63,7 +63,7 @@ TEST_F(ArenaTest, Allocate_ReturnsZeroedOwnedSlot) {
     // Contract: the slot is zeroed before being handed back.
     EXPECT_EQ(p->node, 0u);
     EXPECT_EQ(p->arrival_time, 0u);
-    EXPECT_EQ(p->crowd_cost, 0u);
+    EXPECT_EQ(p->secondary_cost, 0u);
     EXPECT_EQ(p->predecessor, 0u);
 
     arena.deallocate(p);

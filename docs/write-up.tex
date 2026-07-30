@@ -61,6 +61,11 @@
               $t_a = t_d + \tau(u, v)$, where $\tau: V \times V \to \N^+$
               is the travel duration.
     \end{itemize}
+
+    When the feed distinguishes platforms, $V$ is the set of \emph{platforms}
+    rather than stations, and a second edge set $T$ (\Cref{def:transfer})
+    joins platforms of a common station. On a feed without platform-level
+    data, $T = \emptyset$ and the model reduces to the station graph above.
 \end{definition}
 
 \begin{definition}[Time-Dependent Edge Weight]
@@ -73,9 +78,62 @@
     boarding any service from $u$ that departs at or after $t$.
 \end{definition}
 
+\begin{definition}[Transfer Edges]
+    \label{def:transfer}
+    Let $T \subseteq V \times V$ be a set of \emph{transfer edges}, disjoint from
+    $E$. A transfer $(u,v) \in T$ joins two platforms of the same physical
+    station and carries a constant duration $\theta(u,v) \in \N^+$, the minimum
+    time to walk between them. Transfers are \emph{time-independent}: they are
+    available at every $t$, so
+    \[
+        w_T(u, v, t) \;=\; \theta(u,v) \qquad \text{for all } t .
+    \]
+
+    \begin{note}
+    Transfers satisfy FIFO trivially. Since $\theta$ does not depend on $t$,
+    $t_1 \le t_2 \implies t_1 + \theta \le t_2 + \theta$, so the derivative
+    condition of \Cref{lem:fifo-pen} is met with equality
+    ($\frac{d}{dt}\theta = 0 \ge -1$) and no bounded-wait treatment is required.
+    They are stored in a separate CSR adjacency from $E$: the service array is
+    ordered by departure time and searched by binary search, and a transfer has
+    no departure time to sort on. Any sentinel value chosen to represent
+    ``always available'' collides with a legitimate departure --- $0$ is a valid
+    00:00:00 --- so the two edge classes are kept in separate arrays.
+    \end{note}
+\end{definition}
+
+\begin{definition}[The Second Objective]
+    \label{def:second-objective}
+    The engine minimises arrival time against one configurable second dimension,
+    accumulated additively along a path $P$:
+    \[
+        \sigma(P) \;=\;
+        \begin{cases}
+            \displaystyle\sum_{e \in P \cap E} \crowd(e)
+                & \text{(\textsc{CrowdExposure})}\\[2ex]
+            \bigl| P \cap T \bigr|
+                & \text{(\textsc{TransferCount})}
+        \end{cases}
+    \]
+    Under \textsc{TransferCount} every service edge contributes zero and each
+    transfer contributes one, so $\sigma(P)$ is exactly the number of platform
+    changes. Under \textsc{CrowdExposure} the transfer layer contributes zero.
+
+    \begin{note}
+    This choice is not cosmetic; it determines whether the frontier is
+    non-trivial at all. Measured over 300 queries per feed
+    (\texttt{tools/diag.cpp}): under \textsc{TransferCount} on BART, $73.0\%$ of
+    reached nodes carry a frontier with $|\mathcal{L}(v)| > 1$ and the maximum
+    observed is $5$. Under \textsc{CrowdExposure} on the Namma Metro feed the
+    figure is $0.0\%$ --- every frontier is a single label --- because
+    $\crowd$ depends only on departure time and is identical across all edges,
+    admitting no spatial trade-off. See README.md, ``Measured Behaviour''.
+    \end{note}
+\end{definition}
+
 \begin{definition}[Bi-Criteria Edge Weight]
     In the bi-criteria extension, each edge carries both a temporal cost and
-    a crowd cost. The \textbf{full composite cost} used by
+    a second-objective cost. The \textbf{full composite cost} used by
     \texttt{select\_optimal\_departure} is:
     \[
         c(e, t) \;=\; \tau(e) + \lambda \cdot \crowd(e) + \pen(u, v, t),

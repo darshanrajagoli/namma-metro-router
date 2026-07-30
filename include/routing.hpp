@@ -26,7 +26,7 @@
  *   possible boarding on a multi-departure link. See tests/test_pareto_oracle.cpp.
  *
  *   Markowitz analogy:
- *     Scalarized objective: min E[travel_time] + λ·σ[crowd_weight]
+ *     Scalarized objective: min E[travel_time] + λ·σ[secondary_weight]
  *     where λ is the user's risk-aversion coefficient (wait tolerance).
  *     This is isomorphic to Markowitz mean-variance: min σ² - μ/λ.
  *     Limitation: transit delays are right-skewed (bounded below by 0,
@@ -53,16 +53,16 @@ namespace namma_metro
     {
         uint32_t node;         ///< Destination node index this label is associated with.
         uint32_t arrival_time; ///< Total travel time in seconds from source departure.
-        uint32_t crowd_cost;   ///< Cumulative crowd_weight + penalty along path.
+        uint32_t secondary_cost;   ///< Cumulative secondary_weight + penalty along path.
         uint32_t predecessor;  ///< Node index of the previous hop (for path reconstruction).
                                ///< UINT32_MAX for source label.
 
-        /// Priority queue ordering: min-heap on arrival_time (primary), crowd_cost (secondary).
+        /// Priority queue ordering: min-heap on arrival_time (primary), secondary_cost (secondary).
         bool operator>(const Label &rhs) const noexcept
         {
             if (arrival_time != rhs.arrival_time)
                 return arrival_time > rhs.arrival_time;
-            return crowd_cost > rhs.crowd_cost;
+            return secondary_cost > rhs.secondary_cost;
         }
     };
 
@@ -78,7 +78,7 @@ namespace namma_metro
      *
      * Invariants (must hold after every call to insert_and_dominate):
      *   1. All labels are sorted ascending by arrival_time.
-     *   2. crowd_cost is strictly DECREASING across the sorted sequence.
+     *   2. secondary_cost is strictly DECREASING across the sorted sequence.
      *      (Earlier arrival time → higher crowd cost; later arrival time → lower
      *       crowd cost.  This follows from Pareto non-dominance: if labels were
      *       sorted by time ascending and crowd were non-decreasing, the right-hand
@@ -129,7 +129,7 @@ namespace namma_metro
          *   If `it` is not the beginning (it != labels_.begin()), examine the
          *   immediately preceding label `prev = *(it - 1)`.
          *   If prev->arrival_time <= new_label->arrival_time AND
-         *      prev->crowd_cost  <= new_label->crowd_cost,
+         *      prev->secondary_cost  <= new_label->secondary_cost,
          *   then `new_label` is dominated. Deallocate it from the arena and
          *   return false immediately.
          *
@@ -143,25 +143,25 @@ namespace namma_metro
          *   Add this immediately before Step 3:
          *     if (it != labels_.end()  &&
          *         (*it)->arrival_time == new_label->arrival_time &&
-         *         (*it)->crowd_cost   <= new_label->crowd_cost) {
+         *         (*it)->secondary_cost   <= new_label->secondary_cost) {
          *         arena.deallocate(new_label);
          *         return false;  // new_label dominated: same time, equal/worse crowd
          *     }
          *
          * STEP 3 — Amortized O(1) Forward Pruning:
          *   Starting from `it`, scan rightward. While the iterator is valid and
-         *   (*it)->crowd_cost >= new_label->crowd_cost, the label at *it is
+         *   (*it)->secondary_cost >= new_label->secondary_cost, the label at *it is
          *   dominated by new_label (same or better time AND same or better crowd).
          *   Deallocate each dominated label back to the arena, collect the
          *   iterators, then call labels_.erase(range_begin, range_end).
          *   After Steps 2 and 2b, any label at `it` with equal arrival_time will
-         *   have strictly higher crowd_cost, so Step 3 correctly evicts it.
+         *   have strictly higher secondary_cost, so Step 3 correctly evicts it.
          *
          * After pruning, insert new_label at the correct sorted position.
          * Return true to signal a successful, non-dominated insertion.
          *
          * Mathematical justification:
-         *   The Pareto invariant is: sorted by arrival_time ASCENDING, crowd_cost
+         *   The Pareto invariant is: sorted by arrival_time ASCENDING, secondary_cost
          *   strictly DECREASING (earlier arrival = higher crowd; later = lower).
          *   Step 2 rejects labels dominated by a left neighbour.
          *   Step 2b rejects exact duplicates and same-time inferior labels.
@@ -203,7 +203,7 @@ namespace namma_metro
         }
 
     private:
-        std::vector<Label *> labels_; ///< Sorted ascending by arrival_time. Invariant: crowd_cost strictly DECREASING.
+        std::vector<Label *> labels_; ///< Sorted ascending by arrival_time. Invariant: secondary_cost strictly DECREASING.
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -245,7 +245,7 @@ namespace namma_metro
      *   The Bounded-Wait Lookahead resolves this by:
      *     For each of the next k departures of service (u→v) with
      *     departure_time in [current_time, current_time + W_max]:
-     *       composite_cost(e) = e.travel_time + lambda * e.crowd_weight + e.penalty
+     *       composite_cost(e) = e.travel_time + lambda * e.secondary_weight + e.penalty
      *     Return the edge e* minimizing composite_cost(e).
      *
      *   Proof that this preserves FIFO:
@@ -276,7 +276,7 @@ namespace namma_metro
      *      early and miss valid departures to v on multi-destination nodes.
      *   4. For each candidate edge (where e->destination == v), compute:
      *        composite_cost = (float)e->travel_time
-     *                       + config.lambda * (float)e->crowd_weight
+     *                       + config.lambda * (float)e->secondary_weight
      *                       + (float)e->penalty
      *      Use float arithmetic: lambda is float and mixing with uint32_t needs
      *      explicit casts to avoid implicit narrowing.
@@ -304,7 +304,7 @@ namespace namma_metro
      */
     struct QueryResult
     {
-        /// For each node v, the set of Pareto-optimal (arrival_time, crowd_cost) labels.
+        /// For each node v, the set of Pareto-optimal (arrival_time, secondary_cost) labels.
         /// Indexed by node id. May be empty for unreachable nodes.
         std::vector<ParetoLabelSet> pareto_sets;
 
@@ -320,8 +320,8 @@ namespace namma_metro
      * scope note in the file header).
      *
      * Algorithm sketch:
-     *   pq = min-heap ordered by (arrival_time, crowd_cost)
-     *   Push source label (arrival_time=departure_time, crowd_cost=0) to pq.
+     *   pq = min-heap ordered by (arrival_time, secondary_cost)
+     *   Push source label (arrival_time=departure_time, secondary_cost=0) to pq.
      *   while pq non-empty:
      *     pop Label L
      *     // Lazy-deletion filter: skip L if an already-settled label at L.node

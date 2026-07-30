@@ -146,6 +146,23 @@ struct StopTimeRecord {
  */
 uint32_t parse_gtfs_time(const std::string& time_str);
 
+/**
+ * @brief One row of transfers.txt — a walk between two stops of one station.
+ *
+ * The engine reads the normaliser's positional layout:
+ *     from_stop_id,to_stop_id,min_transfer_time
+ *
+ * GTFS's `transfer_type` column is resolved by `scripts/normalize_gtfs.py`
+ * before it reaches the engine, so every record here is a permitted transfer
+ * with a concrete time. Type 3 ("transfer not possible") rows are dropped by
+ * the normaliser rather than encoded as an infinite time.
+ */
+struct TransferRecord {
+    std::string from_stop_id;
+    std::string to_stop_id;
+    uint32_t    min_transfer_time = 0; ///< Seconds. 0 means an immediate transfer.
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // § 3.  The GTFSParser class
 // ═══════════════════════════════════════════════════════════════════════════
@@ -197,6 +214,18 @@ public:
     void load_calendar_dates(const std::string& filename = "calendar_dates.txt");
 
     /**
+     * @brief Load transfers.txt — inter-platform walks within a station.
+     *
+     * Optional: a missing file is not an error, it simply leaves the transfer
+     * layer empty and the engine behaves exactly as before. Rows naming a stop
+     * that is not in stops.txt are dropped as FK orphans, consistent with every
+     * other loader here.
+     *
+     * @pre load_stops() must have been called, so stop FKs can be validated.
+     */
+    void load_transfers(const std::string& filename = "transfers.txt");
+
+    /**
      * @brief Check whether frequencies.txt exists and warn loudly if so.
      *
      * frequencies.txt is NOT currently parsed. If BMRCL uses frequency-based
@@ -235,6 +264,7 @@ public:
     [[nodiscard]] const std::vector<RouteRecord>&    routes()     const { return routes_;     }
     [[nodiscard]] const std::vector<TripRecord>&     trips()      const { return trips_;      }
     [[nodiscard]] const std::vector<StopTimeRecord>& stop_times() const { return stop_times_; }
+    [[nodiscard]] const std::vector<TransferRecord>& transfers()  const { return transfers_;  }
 
     /// Dense stop_id string → uint32_t node index mapping (built after load_stops)
     [[nodiscard]] const std::unordered_map<std::string, uint32_t>& stop_index_map() const {
@@ -256,6 +286,7 @@ public:
 private:
     std::string data_dir_;
 
+    std::vector<TransferRecord> transfers_;
     std::vector<AgencyRecord>   agencies_;
     std::vector<StopRecord>     stops_;
     std::vector<RouteRecord>    routes_;

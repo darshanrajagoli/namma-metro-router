@@ -40,13 +40,13 @@ using namespace namma_metro;
 
 struct PathLabel {
     uint32_t arrival_time;
-    uint32_t crowd_cost;
+    uint32_t secondary_cost;
 };
 
 // Returns true if label a dominates label b
 static bool dominates(const PathLabel& a, const PathLabel& b) {
-    return a.arrival_time <= b.arrival_time && a.crowd_cost <= b.crowd_cost
-        && (a.arrival_time < b.arrival_time || a.crowd_cost < b.crowd_cost);
+    return a.arrival_time <= b.arrival_time && a.secondary_cost <= b.secondary_cost
+        && (a.arrival_time < b.arrival_time || a.secondary_cost < b.secondary_cost);
 }
 
 // Prune dominated labels from a frontier
@@ -97,7 +97,7 @@ static void dfs_oracle(
         if (e->departure_time > current_time + W_max_seconds) continue;
         visited[e->destination] = true;
         const uint32_t new_time  = e->departure_time + e->travel_time;
-        const uint32_t new_crowd = current_crowd + e->crowd_weight + e->penalty;
+        const uint32_t new_crowd = current_crowd + e->secondary_weight + e->penalty;
         dfs_oracle(g, e->destination, dest, new_time, new_crowd, visited, found, W_max_seconds);
         visited[e->destination] = false;
     }
@@ -127,7 +127,7 @@ static CSRGraph build_diamond_graph() {
         e.destination    = dst;
         e.departure_time = dep;
         e.travel_time    = travel;
-        e.crowd_weight   = crowd;
+        e.secondary_weight   = crowd;
         e.penalty        = 0;
         g.edge_data.push_back(e);
         ++g.offset[src + 1];
@@ -183,7 +183,7 @@ TEST(ParetoOracle, DiamondGraph_FrontierMatchesBruteForce) {
     // Collect (time, crowd) from Dijkstra result
     std::vector<PathLabel> dijkstra_labels;
     for (const Label* l : labels) {
-        dijkstra_labels.push_back({l->arrival_time, l->crowd_cost});
+        dijkstra_labels.push_back({l->arrival_time, l->secondary_cost});
     }
 
     // Sort both by arrival_time for comparison
@@ -196,8 +196,8 @@ TEST(ParetoOracle, DiamondGraph_FrontierMatchesBruteForce) {
     for (std::size_t i = 0; i < oracle.size(); ++i) {
         EXPECT_EQ(dijkstra_labels[i].arrival_time, oracle[i].arrival_time)
             << "Path " << i << ": arrival_time mismatch";
-        EXPECT_EQ(dijkstra_labels[i].crowd_cost, oracle[i].crowd_cost)
-            << "Path " << i << ": crowd_cost mismatch";
+        EXPECT_EQ(dijkstra_labels[i].secondary_cost, oracle[i].secondary_cost)
+            << "Path " << i << ": secondary_cost mismatch";
     }
 }
 
@@ -212,8 +212,8 @@ TEST(ParetoOracle, DiamondGraph_BothPathsPresent) {
     bool found_crowd_path = false; // arrival=220, crowd=8  (via node 2)
 
     for (const Label* l : labels) {
-        if (l->arrival_time == 200 && l->crowd_cost == 30) found_fast_path  = true;
-        if (l->arrival_time == 220 && l->crowd_cost == 8)  found_crowd_path = true;
+        if (l->arrival_time == 200 && l->secondary_cost == 30) found_fast_path  = true;
+        if (l->arrival_time == 220 && l->secondary_cost == 8)  found_crowd_path = true;
     }
 
     EXPECT_TRUE(found_fast_path)
@@ -292,7 +292,7 @@ TEST(ParetoOracle, MultiDeparture_BoundedWaitSelectsLaterLowCrowdTrain) {
                         uint32_t dep, uint32_t travel, uint32_t crowd) {
         Edge e;
         e.destination = dst; e.departure_time = dep;
-        e.travel_time = travel; e.crowd_weight = crowd; e.penalty = 0;
+        e.travel_time = travel; e.secondary_weight = crowd; e.penalty = 0;
         g.edge_data.push_back(e);
         ++g.offset[src + 1];
     };
@@ -330,6 +330,6 @@ TEST(ParetoOracle, MultiDeparture_BoundedWaitSelectsLaterLowCrowdTrain) {
 
     EXPECT_EQ(labels[0]->arrival_time, 310u)
         << "Expected arrival = dep(280) + travel(30) = 310";
-    EXPECT_EQ(labels[0]->crowd_cost, 7u)
+    EXPECT_EQ(labels[0]->secondary_cost, 7u)
         << "Expected crowd = 5 (node0→1) + 2 (node1→2) = 7";
 }

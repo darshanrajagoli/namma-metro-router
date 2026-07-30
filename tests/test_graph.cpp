@@ -58,7 +58,7 @@ CSRGraph make_manual_graph() {
         e.destination    = dst;
         e.departure_time = dep;
         e.travel_time    = trav;
-        e.crowd_weight   = crowd;
+        e.secondary_weight   = crowd;
         e.penalty        = pen;
         g.edge_data.push_back(e);
     };
@@ -190,9 +190,9 @@ TEST(GraphBuilderTest, InjectsGaussianCrowdModel) {
 
     ASSERT_EQ(g.num_edges, 1u);
     auto [b, e] = g.edges_of(0);
-    EXPECT_EQ(b[0].crowd_weight, 1000u)
+    EXPECT_EQ(b[0].secondary_weight, 1000u)
         << "Crowd at the 08:00 peak must scale to 1000";
-    EXPECT_EQ(b[0].crowd_weight, expected_crowd(28800));
+    EXPECT_EQ(b[0].secondary_weight, expected_crowd(28800));
     EXPECT_EQ(b[0].penalty, 0u) << "Penalty is 0 in this build";
 }
 

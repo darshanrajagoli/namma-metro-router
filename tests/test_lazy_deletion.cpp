@@ -34,9 +34,9 @@
  *     bool dominated = false;
  *     for (const Label* s : result.pareto_sets[L.node].labels()) {
  *         if (s->arrival_time <= L.arrival_time &&
- *             s->crowd_cost  <= L.crowd_cost  &&
+ *             s->secondary_cost  <= L.secondary_cost  &&
  *             (s->arrival_time < L.arrival_time ||   // ← REQUIRED: at least one
- *              s->crowd_cost   < L.crowd_cost)) {    //   dimension strictly better
+ *              s->secondary_cost   < L.secondary_cost)) {    //   dimension strictly better
  *             dominated = true;
  *             break;
  *         }
@@ -87,7 +87,7 @@ protected:
                     e.destination    = v;
                     e.departure_time = dep;
                     e.travel_time    = trav;
-                    e.crowd_weight   = crowd;
+                    e.secondary_weight   = crowd;
                     e.penalty        = pen;
                     graph.edge_data.push_back(e);
                 }
@@ -113,7 +113,7 @@ protected:
     LookaheadConfig config{.k_departures = 10, .W_max_seconds = 86400, .lambda = 0.0f};
     // NOTE ON lambda=0 IN TESTS 1–5:
     // With lambda=0, the Pareto frontier at every node degenerates to a SINGLE
-    // time-optimal label (all crowd_cost=0, only arrival_time matters).
+    // time-optimal label (all secondary_cost=0, only arrival_time matters).
     // In this degenerate case, the single-objective filter:
     //   if (current.arrival_time > best_time[current.node]) continue;
     // produces IDENTICAL output to the correct bi-criteria filter.
@@ -265,8 +265,8 @@ TEST_F(LazyDeletionTest, SourceNode_HasZeroCostLabel) {
         << "Source node must always have a label";
     EXPECT_EQ(result.pareto_sets[0].labels()[0]->arrival_time, 5000u)
         << "Source label arrival_time must equal departure_time";
-    EXPECT_EQ(result.pareto_sets[0].labels()[0]->crowd_cost, 0u)
-        << "Source label crowd_cost must be 0";
+    EXPECT_EQ(result.pareto_sets[0].labels()[0]->secondary_cost, 0u)
+        << "Source label secondary_cost must be 0";
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -319,8 +319,8 @@ TEST_F(LazyDeletionTest, BiCriteriaFrontier_BothLabelsPresent) {
            "lazy-deletion block in ParetoDijkstra::run.";
 
     EXPECT_EQ(result.pareto_sets[2].labels()[0]->arrival_time, 1300u);
-    EXPECT_EQ(result.pareto_sets[2].labels()[0]->crowd_cost,   100u);
+    EXPECT_EQ(result.pareto_sets[2].labels()[0]->secondary_cost,   100u);
     EXPECT_EQ(result.pareto_sets[2].labels()[1]->arrival_time, 1600u);
-    EXPECT_EQ(result.pareto_sets[2].labels()[1]->crowd_cost,    10u);
+    EXPECT_EQ(result.pareto_sets[2].labels()[1]->secondary_cost,    10u);
 }
 

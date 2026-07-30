@@ -44,7 +44,7 @@ namespace namma_metro {
  *   departure_time + travel_time.
  *
  * Bi-criteria objective:
- *   Minimize total travel_time and minimize cumulative crowd_weight + penalty.
+ *   Minimize total travel_time and minimize cumulative secondary_weight + penalty.
  *   The Pareto-Dijkstra algorithm maintains the full non-dominated frontier.
  *
  * FIFO constraint:
@@ -63,15 +63,18 @@ struct Edge {
     uint32_t travel_time;    ///< Journey duration in seconds from u to destination.
                              ///< Arrival = departure_time + travel_time.
 
-    uint32_t crowd_weight;   ///< Synthetic crowd density score in [0, 1000].
-                             ///< 0 = empty carriage; 1000 = crush load.
-                             ///< Source: IUDX real-time AFC gate data or synthetic
-                             ///< Gaussian model parameterised on Namma Metro ridership.
+    uint32_t secondary_weight; ///< Weight contributed to the SECOND Pareto objective.
+                             ///< Its meaning is chosen at graph-build time via
+                             ///< SecondObjective:
+                             ///<   CrowdExposure — synthetic crowd density in [0,1000]
+                             ///<                   (0 = empty carriage, 1000 = crush load)
+                             ///<   TransferCount — always 0 on a service edge; only
+                             ///<                   TransferEdge contributes.
 
-    uint32_t penalty;        ///< Bounded-Wait Lookahead penalty injected by
-                             ///< select_optimal_departure() in routing.hpp.
-                             ///< Encodes waiting cost in the composite objective.
-                             ///< 0 = board immediately (ideal FIFO case).
+    uint32_t penalty;        ///< Reserved for a time-dependent wait surcharge in the
+                             ///< composite objective. Currently always 0 — see the
+                             ///< note in graph_builder.cpp and "Known Limitations"
+                             ///< in README.md.
 };
 
 // Compile-time memory layout enforcement
@@ -79,6 +82,40 @@ static_assert(sizeof(Edge) == 20,
     "Edge struct must be exactly 20 bytes. Check field ordering for padding.");
 static_assert(alignof(Edge) == 4,
     "Edge struct alignment must be 4 bytes for CSR array packing.");
+
+/**
+ * @brief A walk between two platforms of the same physical station.
+ *
+ * Transfer edges are stored in their OWN CSR adjacency, deliberately kept apart
+ * from `edge_data`:
+ *
+ *   - Service edges are sorted by `departure_time` and searched with
+ *     std::lower_bound. A transfer has no departure time — it is available
+ *     whenever the passenger arrives — so folding it into that array would
+ *     require a sentinel time, and any sentinel can collide with a real
+ *     midnight (00:00:00 == 0) departure. A separate array has no such
+ *     ambiguity.
+ *   - It also leaves the service-edge hot path byte-for-byte unchanged.
+ *
+ * FIFO: `travel_time` here is a constant independent of arrival time, so
+ * t1 <= t2 implies t1 + w <= t2 + w. Transfer edges satisfy FIFO trivially and
+ * need no Bounded-Wait treatment.
+ */
+struct TransferEdge {
+    uint32_t destination;  ///< Node index of the platform being walked to.
+    uint32_t travel_time;  ///< Minimum transfer time in seconds (GTFS
+                           ///< transfers.txt min_transfer_time, or the
+                           ///< normaliser's default when the feed omits the pair).
+};
+
+static_assert(sizeof(TransferEdge) == 8,
+    "TransferEdge must be exactly 8 bytes.");
+
+/// What the second Pareto objective measures. Fixed when the graph is built.
+enum class SecondObjective : uint8_t {
+    CrowdExposure, ///< Accumulate Edge::secondary_weight from the crowd model.
+    TransferCount  ///< Accumulate 1 per transfer edge; service edges contribute 0.
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // § 2.  CSRGraph — the complete graph representation
@@ -112,6 +149,17 @@ struct CSRGraph {
     /// CSR row pointer. Length = num_nodes + 1. offset[num_nodes] == num_edges.
     std::vector<uint32_t> offset;
 
+    uint32_t num_transfers = 0; ///< Total directed transfer-edge count.
+
+    /// Which objective `secondary_weight` / TransferEdge feed. Set by GraphBuilder.
+    SecondObjective second_objective = SecondObjective::CrowdExposure;
+
+    /// Separate CSR adjacency for platform-to-platform transfers.
+    /// transfer_data[transfer_offset[u]..transfer_offset[u+1]) = transfers out of u.
+    /// Empty (and transfer_offset all-zero) on feeds built without transfers.
+    std::vector<TransferEdge> transfer_data;
+    std::vector<uint32_t>     transfer_offset;
+
     // ── Accessors ──────────────────────────────────────────────────────────
 
     /**
@@ -131,12 +179,33 @@ struct CSRGraph {
         return offset[u + 1] - offset[u];
     }
 
+    /**
+     * @brief Return the contiguous range of outgoing transfer edges for node @p u.
+     *
+     * Returns an empty range when the graph was built without transfers, so
+     * callers need no special-casing.
+     */
+    [[nodiscard]] std::pair<const TransferEdge*, const TransferEdge*>
+    transfers_of(uint32_t u) const noexcept {
+        assert(u < num_nodes);
+        if (transfer_offset.empty())
+            return {nullptr, nullptr};
+        return {
+            transfer_data.data() + transfer_offset[u],
+            transfer_data.data() + transfer_offset[u + 1]
+        };
+    }
+
+    [[nodiscard]] bool has_transfers() const noexcept { return num_transfers > 0; }
+
     [[nodiscard]] bool empty() const noexcept { return num_nodes == 0; }
 
     /// Memory footprint in bytes (useful for cache-fit verification)
     [[nodiscard]] size_t memory_bytes() const noexcept {
-        return sizeof(uint32_t) * offset.size()
-             + sizeof(Edge)     * edge_data.size();
+        return sizeof(uint32_t)     * offset.size()
+             + sizeof(Edge)         * edge_data.size()
+             + sizeof(uint32_t)     * transfer_offset.size()
+             + sizeof(TransferEdge) * transfer_data.size();
     }
 };
 
@@ -147,6 +216,7 @@ struct CSRGraph {
 // Forward declarations
 struct StopTimeRecord;
 struct StopRecord;
+struct TransferRecord;
 
 /**
  * @brief Constructs a CSRGraph from sanitized GTFS stop-time data.
@@ -183,6 +253,33 @@ public:
         const std::vector<StopTimeRecord>& stop_times,
         uint32_t num_stops,
         const std::unordered_map<std::string, uint32_t>* stop_index_map = nullptr
+    );
+
+    /**
+     * @brief Build a CSRGraph with a transfer layer and a chosen second objective.
+     *
+     * @param stop_times     As above.
+     * @param num_stops      As above.
+     * @param stop_index_map As above. REQUIRED (non-null) when @p transfers is
+     *                       non-empty: transfer records name stops by id, and
+     *                       resolving them against a locally-rebuilt index that
+     *                       disagrees with the parser's would silently wire
+     *                       transfers between the wrong platforms.
+     * @param transfers      Platform-to-platform transfer records. Records naming
+     *                       an unknown stop are skipped and counted, not fatal.
+     * @param objective      What the second Pareto dimension measures. Under
+     *                       TransferCount every service edge gets
+     *                       secondary_weight = 0 and each transfer contributes 1.
+     *
+     * @post result.transfer_offset.size() == num_nodes + 1 when transfers exist.
+     * @post result.transfer_offset[num_nodes] == result.num_transfers.
+     */
+    static CSRGraph build_with_transfers(
+        const std::vector<StopTimeRecord>& stop_times,
+        uint32_t num_stops,
+        const std::unordered_map<std::string, uint32_t>* stop_index_map,
+        const std::vector<TransferRecord>& transfers,
+        SecondObjective objective
     );
 
 private:

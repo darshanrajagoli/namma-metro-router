@@ -23,17 +23,17 @@
  *   The FIFO lemma (write-up.tex §2) requires: for all t1 <= t2,
  *     penalty(u,v,t2) - penalty(u,v,t1) >= -(t2 - t1).
  *   In this build, penalty = 0 everywhere (graph_builder.cpp), so this holds
- *   trivially. These tests instead verify the crowd_weight derivative bound as
- *   a conservative proxy: if crowd_weight drops faster than 1 unit/second, the
+ *   trivially. These tests instead verify the secondary_weight derivative bound as
+ *   a conservative proxy: if secondary_weight drops faster than 1 unit/second, the
  *   composite cost (travel + lambda*crowd) could exhibit FIFO-like violations.
  *
- *   The Gaussian model's max |d/dt(crowd_weight)| ≈ 1.8 units/second (at peak),
+ *   The Gaussian model's max |d/dt(secondary_weight)| ≈ 1.8 units/second (at peak),
  *   but over 60-second intervals (the minimum between edges), delta_crowd >= -108,
  *   which satisfies dc >= -dt for all adjacent edge pairs.
  *
  * IF THESE TESTS FAIL:
  *   The crowd model parameters in graph_builder.cpp were changed and now produce
- *   crowd_weight that drops faster than 1 unit per second. Fix by reducing
+ *   secondary_weight that drops faster than 1 unit per second. Fix by reducing
  *   AMPLITUDE or increasing SIGMA in graph_builder.cpp.
  */
 
@@ -48,7 +48,7 @@ static CSRGraph build_fifo_stress_graph() {
 
     // Insert edges every 60 seconds from midnight to 30hr (covers overnight GTFS)
     for (uint32_t t = 0; t <= 108000; t += 60) { // 0 to 30 hours
-        // crowd_weight formula from graph_builder.cpp
+        // secondary_weight formula from graph_builder.cpp
         constexpr double PEAK  = 28800.0;
         constexpr double SIGMA = 3600.0;
         const double crowd_raw = 10.0 + 90.0 * std::exp(
@@ -60,7 +60,7 @@ static CSRGraph build_fifo_stress_graph() {
         e.destination    = 1;
         e.departure_time = t;
         e.travel_time    = 300; // 5 minutes
-        e.crowd_weight   = crowd;
+        e.secondary_weight   = crowd;
         e.penalty        = 0;
         g.edge_data.push_back(e);
         ++g.offset[1];
@@ -81,7 +81,7 @@ TEST(FIFOInvariant, GaussianCrowdModel_SatisfiesDerivativeConstraint) {
         const Edge* e2 = e1 + 1;
         // e1 departs earlier than e2 (both go to same destination)
         const int64_t dt = static_cast<int64_t>(e2->departure_time) - e1->departure_time;
-        const int64_t dc = static_cast<int64_t>(e2->crowd_weight)   - e1->crowd_weight;
+        const int64_t dc = static_cast<int64_t>(e2->secondary_weight)   - e1->secondary_weight;
 
         // FIFO constraint: dc >= -dt
         // i.e., crowd can decrease by at most 1 unit per second
@@ -98,7 +98,7 @@ TEST(FIFOInvariant, GaussianCrowdModel_SatisfiesDerivativeConstraint) {
 
     EXPECT_EQ(violations, 0u)
         << violations << " FIFO violations detected in Gaussian crowd model. "
-           "d/dt(crowd_weight) < -1 at some departure times. "
+           "d/dt(secondary_weight) < -1 at some departure times. "
            "Dijkstra will produce wrong paths when this constraint is violated. "
            "Fix: reduce AMPLITUDE or increase SIGMA in graph_builder.cpp.";
 }
@@ -110,10 +110,10 @@ TEST(FIFOInvariant, CrowdWeightIsNonZero) {
     auto [begin, end] = g.edges_of(0);
     uint32_t nonzero_count = 0;
     for (const Edge* e = begin; e != end; ++e) {
-        if (e->crowd_weight > 0) ++nonzero_count;
+        if (e->secondary_weight > 0) ++nonzero_count;
     }
     EXPECT_GT(nonzero_count, 0u)
-        << "All crowd_weight values are 0. Crowd model not injected in graph_builder.cpp. "
+        << "All secondary_weight values are 0. Crowd model not injected in graph_builder.cpp. "
            "Pareto frontier degenerates to single point.";
 }
 
@@ -127,9 +127,9 @@ TEST(FIFOInvariant, CrowdWeightPeaksAroundMorningRush) {
     uint32_t crowd_at_midnight2 = 0;  // t=86400
 
     for (const Edge* e = begin; e != end; ++e) {
-        if (e->departure_time == 0)     crowd_at_midnight  = e->crowd_weight;
-        if (e->departure_time == 28800) crowd_at_8am       = e->crowd_weight;
-        if (e->departure_time == 86400) crowd_at_midnight2 = e->crowd_weight;
+        if (e->departure_time == 0)     crowd_at_midnight  = e->secondary_weight;
+        if (e->departure_time == 28800) crowd_at_8am       = e->secondary_weight;
+        if (e->departure_time == 86400) crowd_at_midnight2 = e->secondary_weight;
     }
 
     EXPECT_GT(crowd_at_8am, crowd_at_midnight)

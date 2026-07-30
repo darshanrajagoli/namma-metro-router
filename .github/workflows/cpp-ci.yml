@@ -53,6 +53,50 @@ jobs:
             fi
           done
           echo "All required GTFS files present."
+          # transfers.txt is optional. The synthetic feed has no platforms so it
+          # produces none, and the engine must stay fully functional without it —
+          # that path is covered by TransferLayer.AbsentByDefault_GraphIsUnchanged.
+          if [ -f data/transfers.txt ]; then
+            echo "transfers.txt present ($(( $(wc -l < data/transfers.txt) - 1 )) rows)"
+          else
+            echo "transfers.txt absent (expected for the synthetic feed)"
+          fi
+
+      # ── 4b. Smoke-test the normaliser's --transfers path ─────────────────
+      # The transfer layer's C++ side is covered by tests/test_transfers.cpp, but
+      # the generation of transfers.txt lives in Python and ctest cannot reach it.
+      # This builds a minimal two-platform feed and asserts the normaliser emits
+      # both directions with the feed time where given and the default elsewhere.
+      - name: Test normalize_gtfs.py --transfers
+        run: |
+          mkdir -p raw_tiny
+          printf 'agency_id,agency_name,agency_url,agency_timezone\nA,Test,http://e.org,UTC\n' > raw_tiny/agency.txt
+          printf 'route_id,route_short_name,route_long_name,route_type\nR1,1,Line 1,1\nR2,2,Line 2,1\n' > raw_tiny/routes.txt
+          printf 'trip_id,route_id,service_id\nT1,R1,S\nT2,R2,S\n' > raw_tiny/trips.txt
+          # ST1/ST2 are platforms of station ST; P9 is a lone platform elsewhere.
+          printf 'stop_id,stop_name,stop_lat,stop_lon,parent_station,location_type\n' > raw_tiny/stops.txt
+          printf 'ST1,Central P1,12.97,77.59,ST,0\nST2,Central P2,12.97,77.59,ST,0\nP9,Far,12.99,77.61,,0\n' >> raw_tiny/stops.txt
+          printf 'trip_id,arrival_time,departure_time,stop_id,stop_sequence\n' > raw_tiny/stop_times.txt
+          printf 'T1,08:00:00,08:00:00,ST1,0\nT1,08:05:00,08:05:00,P9,1\n' >> raw_tiny/stop_times.txt
+          printf 'T2,08:10:00,08:10:00,ST2,0\nT2,08:15:00,08:15:00,P9,1\n' >> raw_tiny/stop_times.txt
+          printf 'from_stop_id,to_stop_id,transfer_type,min_transfer_time\nST1,ST2,2,45\n' > raw_tiny/transfers.txt
+
+          python3 scripts/normalize_gtfs.py raw_tiny data_tiny --transfers --default-transfer 150
+          echo "--- generated transfers.txt ---"; cat data_tiny/transfers.txt
+
+          python3 - <<'EOF'
+          import csv, sys
+          rows = list(csv.DictReader(open("data_tiny/transfers.txt")))
+          got = {(r["from_stop_id"], r["to_stop_id"]): int(r["min_transfer_time"]) for r in rows}
+          # Both directions must exist even though the feed only supplied one.
+          expected = {("ST1", "ST2"): 45, ("ST2", "ST1"): 150}
+          if got != expected:
+              sys.exit(f"FATAL: transfers mismatch.\n  got:      {got}\n  expected: {expected}")
+          # A station with a single platform must not generate a self-transfer.
+          if any(a == b for a, b in got):
+              sys.exit("FATAL: self-transfer emitted")
+          print("normalize_gtfs.py --transfers: OK")
+          EOF
 
       # ── 5. Cache CMake build artifacts ───────────────────────────────────
       - name: Cache CMake build

@@ -13,7 +13,7 @@ namespace namma_metro
     bool ParetoLabelSet::insert_and_dominate(Label *new_label, ArenaAllocator<Label> &arena)
     {
         // Sorted-vector Pareto insertion. Invariant preserved on return:
-        //   labels_ is sorted ascending by arrival_time, with crowd_cost strictly
+        //   labels_ is sorted ascending by arrival_time, with secondary_cost strictly
         //   DECREASING across the sequence (earlier arrival = higher crowd cost).
         // Contract: on a false return, new_label has already been deallocated.
         // See include/routing.hpp §2 for the derivation and
@@ -30,12 +30,12 @@ namespace namma_metro
 
         // ── STEP 2: O(1) backward dominance check. ───────────────────────────
         // The left neighbour (*(it-1)) has a strictly smaller arrival_time. If
-        // its crowd_cost is also <=, it dominates new_label on both criteria.
+        // its secondary_cost is also <=, it dominates new_label on both criteria.
         if (it != labels_.begin())
         {
             const Label *prev = *(it - 1);
             if (prev->arrival_time <= new_label->arrival_time &&
-                prev->crowd_cost <= new_label->crowd_cost)
+                prev->secondary_cost <= new_label->secondary_cost)
             {
                 arena.deallocate(new_label);
                 return false; // dominated by the left neighbour
@@ -45,24 +45,24 @@ namespace namma_metro
         // ── STEP 2b: same-arrival-time dominance check. ──────────────────────
         // lower_bound can land directly ON a label with an equal arrival_time
         // (e.g. the same train relaxed twice). That label sits to the RIGHT of
-        // (it-1), so Step 2 misses it. If the existing label's crowd_cost is
+        // (it-1), so Step 2 misses it. If the existing label's secondary_cost is
         // equal or better, new_label is dominated.
         if (it != labels_.end() &&
             (*it)->arrival_time == new_label->arrival_time &&
-            (*it)->crowd_cost <= new_label->crowd_cost)
+            (*it)->secondary_cost <= new_label->secondary_cost)
         {
             arena.deallocate(new_label);
             return false; // same arrival time, equal or worse crowd
         }
 
         // ── STEP 3: amortised O(1) forward pruning. ──────────────────────────
-        // Every label from `it` rightward whose crowd_cost is >= new_label's is
+        // Every label from `it` rightward whose secondary_cost is >= new_label's is
         // now dominated by new_label (equal-or-smaller arrival_time AND
-        // equal-or-smaller crowd_cost; at least one is strictly smaller after
+        // equal-or-smaller secondary_cost; at least one is strictly smaller after
         // Steps 2/2b). Free each, then erase the contiguous run in one call.
         auto prune_end = it;
         while (prune_end != labels_.end() &&
-               (*prune_end)->crowd_cost >= new_label->crowd_cost)
+               (*prune_end)->secondary_cost >= new_label->secondary_cost)
         {
             arena.deallocate(*prune_end);
             ++prune_end;
@@ -123,14 +123,35 @@ namespace namma_metro
             if (e->destination != v)
                 continue;
 
-            // Composite objective. For lambda > 0 (crowd-aware production use)
-            // neither wait nor arrival time enters the cost — the tradeoff is
-            // travel duration vs. crowd exposure only. In the lambda == 0 corner
-            // case the crowd term vanishes; a pure travel_time formula would then
-            // minimise DURATION rather than ARRIVAL, so departure_time is folded
-            // back in to correctly minimise arrival time.
+            // Composite objective, choosing between departures on the SAME link.
+            //
+            // Two regimes:
+            //
+            //  (a) Arrival-minimising — used when the second objective cannot
+            //      discriminate between the candidates, so the only thing left to
+            //      optimise is when the passenger actually gets there. This covers
+            //      lambda == 0 (the crowd term vanishes) and the TransferCount
+            //      objective (every service edge carries secondary_weight = 0, so
+            //      the crowd term is identically zero for every candidate).
+            //      Folding departure_time in is what makes this minimise ARRIVAL
+            //      rather than ride DURATION.
+            //
+            //      Getting this wrong is not subtle in its effect: under
+            //      TransferCount the (b) formula reduces to "shortest ride", which
+            //      picks a later, faster train that arrives strictly later while
+            //      saving zero transfers — measurably worse on every axis. The
+            //      trade-off under TransferCount lives in the Pareto frontier
+            //      across ROUTES, not in the choice of departure on one link.
+            //
+            //  (b) Duration-vs-crowd — the crowd-aware regime, where deliberately
+            //      waiting for an emptier train is the entire point, so neither
+            //      the wait nor the arrival time enters the cost.
+            const bool arrival_minimising =
+                (config.lambda == 0.0f) ||
+                (graph.second_objective == SecondObjective::TransferCount);
+
             float composite;
-            if (config.lambda == 0.0f)
+            if (arrival_minimising)
             {
                 composite = static_cast<float>(e->departure_time)
                           + static_cast<float>(e->travel_time)
@@ -139,7 +160,7 @@ namespace namma_metro
             else
             {
                 composite = static_cast<float>(e->travel_time)
-                          + config.lambda * static_cast<float>(e->crowd_weight)
+                          + config.lambda * static_cast<float>(e->secondary_weight)
                           + static_cast<float>(e->penalty);
             }
 
@@ -240,9 +261,9 @@ namespace namma_metro
             for (const Label *s : result_pareto[current.node].labels())
             {
                 if (s->arrival_time <= current.arrival_time &&
-                    s->crowd_cost <= current.crowd_cost &&
+                    s->secondary_cost <= current.secondary_cost &&
                     (s->arrival_time < current.arrival_time ||
-                     s->crowd_cost < current.crowd_cost))
+                     s->secondary_cost < current.secondary_cost))
                 {
                     dominated = true;
                     break;
@@ -298,7 +319,7 @@ namespace namma_metro
                     continue;
 
                 const uint32_t new_arrival = opt_edge->departure_time + opt_edge->travel_time;
-                const uint32_t new_crowd = current.crowd_cost + opt_edge->crowd_weight + opt_edge->penalty;
+                const uint32_t new_crowd = current.secondary_cost + opt_edge->secondary_weight + opt_edge->penalty;
 
                 Label *new_label = arena_->allocate();
                 new (new_label) Label{
@@ -312,6 +333,37 @@ namespace namma_metro
                     pq_.push(*new_label);
                 }
                 // If dominated: insert_and_dominate already freed new_label
+            }
+
+            // ── Transfer relaxation ───────────────────────────────────────────
+            // Transfers are always available: the passenger arrives at
+            // current.arrival_time and may start walking immediately, so there is
+            // no departure to select and no bounded-wait window to respect. That
+            // also makes them trivially FIFO — travel_time is a constant, so
+            // t1 <= t2 implies t1 + w <= t2 + w for every pair of arrival times.
+            //
+            // The range is empty on feeds built without a transfer layer, so this
+            // loop costs one pointer comparison in that case.
+            const uint32_t transfer_cost =
+                (graph_.second_objective == SecondObjective::TransferCount) ? 1u : 0u;
+
+            auto [tr_begin, tr_end] = graph_.transfers_of(current.node);
+            for (const TransferEdge *t = tr_begin; t != tr_end; ++t)
+            {
+                const uint32_t new_arrival = current.arrival_time + t->travel_time;
+                const uint32_t new_secondary = current.secondary_cost + transfer_cost;
+
+                Label *new_label = arena_->allocate();
+                new (new_label) Label{
+                    t->destination,
+                    new_arrival,
+                    new_secondary,
+                    current.node};
+
+                if (result_pareto[t->destination].insert_and_dominate(new_label, *arena_))
+                {
+                    pq_.push(*new_label);
+                }
             }
         }
 

@@ -27,9 +27,27 @@ USAGE
     python3 scripts/normalize_gtfs.py  raw_bart        data          # metro only (default)
     python3 scripts/normalize_gtfs.py  raw_bmtc        data  --all   # keep every mode (e.g. buses)
     python3 scripts/normalize_gtfs.py  raw_feed        data  --no-collapse
+    python3 scripts/normalize_gtfs.py  raw_bart        data_bart --transfers
 
 <raw_feed_dir> is a folder containing the unzipped .txt files of a real GTFS feed.
 <output_dir>   is where the clean files are written (point the engine at this).
+
+--transfers
+    Keep platforms as separate nodes (implies --no-collapse) and emit transfers.txt
+    so that changing lines costs real time and can be counted as a second objective.
+
+    Why this needs generating rather than copying: a feed's transfers.txt is
+    sparse. BART's has 34 rows covering 11 stations, but 36 further stations have
+    more than one platform and no row at all. Copying it verbatim would leave
+    those stations with no way to change platform, silently disconnecting the
+    graph. So every ordered same-parent platform pair gets an edge, using the
+    feed's min_transfer_time where it exists and --default-transfer elsewhere.
+
+    Transfer types are resolved here, not in the engine:
+      type 0 / blank -> recommended  : use --default-transfer
+      type 1         -> timed        : use min_transfer_time
+      type 2         -> min required : use min_transfer_time
+      type 3         -> NOT possible : pair is dropped entirely
 """
 
 import csv
@@ -67,13 +85,31 @@ def clean(text):
 
 
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    argv = sys.argv[1:]
+    # --default-transfer takes a value; pull it out before positional parsing.
+    default_transfer = 120
+    if "--default-transfer" in argv:
+        k = argv.index("--default-transfer")
+        if k + 1 >= len(argv):
+            die("--default-transfer needs a value in seconds")
+        try:
+            default_transfer = int(argv[k + 1])
+        except ValueError:
+            die("--default-transfer must be an integer number of seconds")
+        del argv[k:k + 2]
+
+    args = [a for a in argv if not a.startswith("--")]
+    flags = {a for a in argv if a.startswith("--")}
     if len(args) < 2:
-        die("usage: normalize_gtfs.py <raw_feed_dir> <output_dir> [--all|--bus] [--no-collapse]")
+        die("usage: normalize_gtfs.py <raw_feed_dir> <output_dir> "
+            "[--all|--bus] [--no-collapse] [--transfers] [--default-transfer SECONDS]")
     raw, out = args[0], args[1]
     keep_all = "--all" in flags or "--bus" in flags
-    collapse = "--no-collapse" not in flags
+    want_transfers = "--transfers" in flags
+    # Transfers are walks BETWEEN platforms. Collapsing platforms onto their
+    # parent station merges those endpoints into one node, which would turn every
+    # transfer into a self-loop. The two options are mutually exclusive.
+    collapse = ("--no-collapse" not in flags) and not want_transfers
     os.makedirs(out, exist_ok=True)
 
     stops_r = read_table(os.path.join(raw, "stops.txt"))
@@ -132,7 +168,13 @@ def main():
     out_stops = []
     emitted = set()
     dropped_no_coord = 0
-    for sid in used_stop_ids:
+    # sorted(), not raw set iteration: Python randomises string hashing per
+    # process (PYTHONHASHSEED), so iterating the set directly emits stops.txt in a
+    # different order on every run. The engine assigns node indices by row order,
+    # so that would renumber the entire graph between two runs of this script --
+    # changing which (source, departure) pairs the benchmark samples and making
+    # every published latency and frontier statistic irreproducible.
+    for sid in sorted(used_stop_ids):
         s = stops_by_id.get(sid)
         if s is None:
             continue
@@ -175,7 +217,7 @@ def main():
        for rid, r in kept_routes.items()])
 
     w("trips.txt", "route_id,service_id,trip_id",
-      [(kept_trips[t]["route_id"], "WEEKDAY", t) for t in routable_trips])
+      [(kept_trips[t]["route_id"], "WEEKDAY", t) for t in sorted(routable_trips)])
 
     w("stop_times.txt", "trip_id,arrival_time,departure_time,stop_id,stop_sequence",
       kept_st)
@@ -185,9 +227,60 @@ def main():
       "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date",
       [("WEEKDAY", 1, 1, 1, 1, 1, 1, 1, "20200101", "20301231")])
 
+    # ── transfers.txt (only with --transfers) ────────────────────────────────
+    n_transfers = n_from_feed = n_defaulted = n_forbidden = 0
+    if want_transfers:
+        # Feed-supplied times and prohibitions, keyed by ordered platform pair.
+        feed_time, forbidden = {}, set()
+        raw_tr = read_table(os.path.join(raw, "transfers.txt")) or []
+        for r in raw_tr:
+            a, b = r.get("from_stop_id", ""), r.get("to_stop_id", "")
+            if not a or not b:
+                continue
+            ttype = (r.get("transfer_type", "") or "").strip()
+            if ttype == "3":                       # transfer explicitly not possible
+                forbidden.add((a, b))
+                continue
+            mt = (r.get("min_transfer_time", "") or "").strip()
+            if ttype in ("1", "2") and mt.isdigit():
+                feed_time[(a, b)] = int(mt)
+
+        # Group the stops we actually emitted by their parent station. Only stops
+        # that survived to out_stops can be transfer endpoints.
+        by_parent = {}
+        for (sid, _name, _lat, _lon) in out_stops:
+            s = stops_by_id.get(sid)
+            parent = (s.get("parent_station") or "").strip() if s else ""
+            by_parent.setdefault(parent or sid, []).append(sid)
+
+        rows = []
+        for _parent, plats in by_parent.items():
+            if len(plats) < 2:
+                continue
+            for a in plats:
+                for b in plats:
+                    if a == b:
+                        continue
+                    if (a, b) in forbidden:
+                        n_forbidden += 1
+                        continue
+                    if (a, b) in feed_time:
+                        secs = feed_time[(a, b)]
+                        n_from_feed += 1
+                    else:
+                        secs = default_transfer
+                        n_defaulted += 1
+                    rows.append((a, b, secs))
+        n_transfers = len(rows)
+        w("transfers.txt", "from_stop_id,to_stop_id,min_transfer_time", rows)
+
     print("normalize_gtfs.py — done.")
     print(f"  mode filter    : {'ALL modes' if keep_all else 'rail/metro only'}")
     print(f"  parent collapse: {'on' if collapse else 'off'}")
+    if want_transfers:
+        print(f"  transfers      : {n_transfers} emitted "
+              f"({n_from_feed} from feed, {n_defaulted} defaulted to {default_transfer}s, "
+              f"{n_forbidden} forbidden/skipped)")
     print(f"  routes kept    : {len(kept_routes)}")
     print(f"  trips  kept    : {len(routable_trips)}")
     print(f"  stops  kept    : {len(out_stops)}   (dropped for bad coords: {dropped_no_coord})")

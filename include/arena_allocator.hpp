@@ -6,6 +6,9 @@
 #include <cassert>
 #include <stdexcept>
 #include <array>
+#ifdef NAMMA_BASELINE_HEAP_ALLOC
+#include <vector>   // live-pointer tracking, baseline builds only
+#endif
 
 /**
  * @file arena_allocator.hpp
@@ -57,6 +60,28 @@
  *   used_count_ * sizeof(T) + free_list_length * sizeof(T) == bump_ptr_ * sizeof(T)
  */
 
+/**
+ * NAMMA_BASELINE_HEAP_ALLOC — opt-in A/B baseline (never defined in normal builds)
+ * ------------------------------------------------------------------------------
+ * Defining this macro swaps the arena's three hot methods for the allocation
+ * strategy a straightforward implementation would use: one `operator new` per
+ * Label, freed in bulk between queries. It exists so the arena's benefit can be
+ * *measured* rather than asserted — see the `routing_engine_baseline` target in
+ * CMakeLists.txt and the A/B table in README.md.
+ *
+ * The comparison is deliberately generous to the baseline:
+ *   - deallocate() is a NO-OP under this macro, so the baseline is charged for
+ *     allocation but never for reclaiming dominated labels. The arena pays that
+ *     cost (free-list push) on every dominated label and still wins.
+ *   - The live-pointer vector that makes bulk reclamation possible retains its
+ *     capacity across resets, so after warm-up each record is a pointer store,
+ *     not an allocation.
+ * The measured gap is therefore a LOWER bound on what the arena is worth.
+ *
+ * The macro is never set for the shipping binary, the test suite, or CI, so the
+ * optimized code path carries no runtime branch for it.
+ */
+
 namespace namma_metro {
 
 /// Default arena capacity: 65536 Label objects (~1 MB for the 16-byte Label).
@@ -87,6 +112,14 @@ public:
         std::memset(arena_.data(), 0, sizeof(arena_));
     }
 
+#ifdef NAMMA_BASELINE_HEAP_ALLOC
+    /// Baseline builds only. reset() frees the previous query's labels, so without
+    /// this the final query's labels would still be outstanding at teardown and
+    /// LeakSanitizer would flag them. The real arena needs no destructor: its
+    /// storage is a member array.
+    ~ArenaAllocator() { for (T* p : live_) delete p; }
+#endif
+
     // Non-copyable, non-movable (fixed address required for free-list pointers)
     ArenaAllocator(const ArenaAllocator&) = delete;
     ArenaAllocator& operator=(const ArenaAllocator&) = delete;
@@ -111,6 +144,13 @@ public:
      * @throws  std::bad_alloc if arena is exhausted.
      */
     [[nodiscard]] T* allocate() {
+#ifdef NAMMA_BASELINE_HEAP_ALLOC
+        // Baseline: straight to the OS allocator, one call per Label.
+        T* slot = new T();          // value-initialized, matching the memset below
+        live_.push_back(slot);      // amortized O(1); capacity retained across resets
+        ++used_count_;
+        return slot;
+#else
         T* slot = nullptr;
 
         if (free_list_head_ != nullptr) {
@@ -128,6 +168,7 @@ public:
         std::memset(slot, 0, sizeof(T));
         ++used_count_;
         return slot;
+#endif
     }
 
     /**
@@ -141,6 +182,12 @@ public:
      */
     void deallocate(T* ptr) noexcept {
         assert(ptr != nullptr);
+#ifdef NAMMA_BASELINE_HEAP_ALLOC
+        // Intentionally a no-op: dominated labels are reclaimed in bulk by reset()
+        // at the start of the next query. This under-charges the baseline on
+        // purpose — see the macro's note at the top of this file.
+        (void)ptr;
+#else
         assert(owns(ptr) && "deallocate(): pointer not owned by this arena");
 
         // Reinterpret the memory as a FreeNode to store the linkage.
@@ -148,6 +195,7 @@ public:
         node->next = free_list_head_;
         free_list_head_ = node;
         --used_count_;
+#endif
     }
 
     // ── Reset ─────────────────────────────────────────────────────────────
@@ -159,9 +207,17 @@ public:
      * are invalidated. Suitable for clearing between independent routing queries.
      */
     void reset() noexcept {
+#ifdef NAMMA_BASELINE_HEAP_ALLOC
+        // Baseline: O(n) teardown, one operator delete per Label allocated during
+        // the previous query. This is the cost the arena's O(1) reset replaces.
+        for (T* p : live_) delete p;
+        live_.clear();              // retains capacity for the next query
+        used_count_ = 0;
+#else
         bump_ptr_       = 0;
         free_list_head_ = nullptr;
         used_count_     = 0;
+#endif
     }
 
     // ── Memory pre-faulting ───────────────────────────────────────────────
@@ -178,11 +234,18 @@ public:
      * This is the canonical technique used in HFT system initialization.
      */
     void prefault() noexcept {
+#ifdef NAMMA_BASELINE_HEAP_ALLOC
+        // Nothing to pre-fault: the baseline has no pre-allocated slab, which is
+        // precisely one of the costs being measured — its pages are faulted in
+        // on demand, inside the timed region.
+        return;
+#else
         constexpr std::size_t PAGE_SIZE = 4096;
         volatile uint8_t* raw = reinterpret_cast<volatile uint8_t*>(arena_.data());
         for (std::size_t i = 0; i < sizeof(arena_); i += PAGE_SIZE) {
             raw[i] = 0;
         }
+#endif
     }
 
     // ── Diagnostics ───────────────────────────────────────────────────────
@@ -225,6 +288,12 @@ private:
     std::size_t bump_ptr_;       ///< Index of next fresh slot in arena_
     FreeNode*   free_list_head_; ///< Head of the recycled-slot free list
     std::size_t used_count_;     ///< Currently live (not freed) allocations
+
+#ifdef NAMMA_BASELINE_HEAP_ALLOC
+    /// Baseline builds only: pointers handed out since the last reset(), so they
+    /// can be freed in bulk. Absent from the shipping binary entirely.
+    std::vector<T*> live_;
+#endif
 };
 
 } // namespace namma_metro
