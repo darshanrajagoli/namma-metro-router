@@ -20,13 +20,14 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
+          # GoogleTest is NOT installed from apt: CMakeLists fetches and builds
+          # v1.14.0 via FetchContent, so libgtest-dev would be unused. valgrind
+          # was likewise installed but never invoked by any step. Both removed.
           sudo apt-get install -y \
             cmake \
             ninja-build \
             gcc-13 \
             g++-13 \
-            libgtest-dev \
-            valgrind \
             python3
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
           sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100

@@ -250,11 +250,21 @@ public:
      *   across the gap. Distribute time linearly proportional to cumulative
      *   distance from `prev`.
      *
-     * This guarantees that every StopTimeRecord reaching graph construction
-     * has a valid, non-sentinel arrival_time and departure_time.
+     * KNOWN GAP — this does NOT fill every blank. If a trip's times are blank
+     * for EVERY row, there is no bracketing timepoint to interpolate between:
+     * the leading-blank branch scans forward, finds no defined time before the
+     * end of the trip, and leaves the sentinels in place. Such rows survive into
+     * GraphBuilder, which skips them explicitly (see the UINT32_MAX guard in
+     * build_with_transfers). A trip with at least one defined timepoint is
+     * always fully filled.
+     *
+     * A row with a blank arrival but a DEFINED departure also has its departure
+     * overwritten, because the branch is selected on arrival_time alone.
      *
      * @pre  load_stop_times() and load_stops() must have been called.
-     * @post No StopTimeRecord in stop_times_ has arrival_time == UINT32_MAX.
+     * @post Every StopTimeRecord belonging to a trip with >= 1 defined timepoint
+     *       has non-sentinel arrival_time and departure_time. Trips that are
+     *       entirely blank are left untouched and are dropped at graph build.
      */
     void interpolate_stop_times();
 

@@ -17,10 +17,13 @@
  * ╔══════════════════════════════════════════════════════════════╗
  * ║  WHY AN ARENA ALLOCATOR — determinism over the OS heap     ║
  * ╠══════════════════════════════════════════════════════════════╣
- * ║  The OS heap (malloc/new) has:                              ║
- * ║    • Non-deterministic latency (p99 ≈ microseconds)         ║
- * ║    • Lock contention in multi-threaded contexts             ║
- * ║    • Fragmentation after repeated alloc/free cycles         ║
+ * ║  The general-purpose heap (malloc/new) must serve any size,  ║
+ * ║  track free blocks, resist fragmentation and stay thread-    ║
+ * ║  safe. That generality costs time, and occasionally costs    ║
+ * ║  a page fault or a syscall — so its tail is unpredictable.   ║
+ * ║  It is NOT slow in the common case: glibc's tcache serves a  ║
+ * ║  16-byte request in a few nanoseconds, which is exactly why  ║
+ * ║  the measurement below comes out negative on one workload.   ║
  * ║                                                              ║
  * ║  MEASURED, not assumed: on the workload where the Pareto     ║
  * ║  frontier genuinely branches (BART + transfers, peak 280     ║
@@ -61,8 +64,9 @@
  *   1. Reinterpret the slot as a FreeNode (stores next pointer in first 8 bytes).
  *   2. Push to head of free_list → O(1).
  *
- * Invariant:
- *   used_count_ * sizeof(T) + free_list_length * sizeof(T) == bump_ptr_ * sizeof(T)
+ * Invariant (checked by check_invariant(), in SLOT COUNTS not bytes):
+ *   used_count_ + free_list_length() == bump_ptr_
+ * i.e. every slot ever handed out is either live or sitting on the free list.
  */
 
 /**

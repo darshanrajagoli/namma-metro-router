@@ -29,10 +29,11 @@ set(COMMON_FLAGS "-Wall -Wextra -Wpedantic -Wshadow -Wno-unused-parameter")
 # hot loop is branchy pointer-chasing through a heap, so the win from -march is
 # instruction selection rather than SIMD.
 # -ffast-math is deliberately NOT used: it enables -funsafe-math-optimizations,
-# which may reassociate
-# the composite cost formula (wait + travel + lambda*crowd + penalty), changing
-# which train is selected at boundary conditions. The FIFO proof and test suite
-# verify Debug builds (no -ffast-math) — the Release build must match.
+# which may reassociate the composite cost formula
+# (travel + lambda*secondary_weight + penalty), changing which train is selected
+# at boundary conditions. The test suite runs against Debug builds (no
+# -ffast-math), so the Release build must agree with it or the tests validate a
+# different program from the one being benchmarked.
 # -fno-math-errno + -ffinite-math-only retain vectorization benefits without
 # breaking float associativity or the priority queue's strict weak ordering.
 #
@@ -53,9 +54,6 @@ set(RELEASE_FLAGS "${COMMON_FLAGS} -O3 ${ARCH_FLAG} -funroll-loops -fno-math-err
 
 # Debug: sanitizers for allocator development
 set(DEBUG_FLAGS "${COMMON_FLAGS} -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer")
-
-# Asan test target
-set(ASAN_FLAGS "${COMMON_FLAGS} -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${RELEASE_FLAGS}")
@@ -101,6 +99,11 @@ target_link_libraries(routing_engine_benchmark PRIVATE namma_metro_core)
 #
 #   cmake -S . -B build -DBUILD_BASELINE=ON
 #   ./build/routing_engine_baseline ./data
+# The target itself is defined below, behind option(BUILD_BASELINE).
+
+# ─────────────────────────────────────────────
+# Diagnostic tools (built by default)
+# ─────────────────────────────────────────────
 # tools/diag — reports Pareto frontier sizes and lambda sensitivity. This is what
 # produced the "Measured Behaviour" section of the README; it is how you check
 # whether the bi-criteria machinery is actually load-bearing on a given feed.
@@ -198,7 +201,7 @@ if(ENABLE_CLANG_TIDY)
 endif()
 
 # ─────────────────────────────────────────────
-# Print memory layout sizes at configure time
+# Configuration summary printed at configure time
 # ─────────────────────────────────────────────
 message(STATUS "Project: ${PROJECT_NAME} v${PROJECT_VERSION}")
 message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
