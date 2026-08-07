@@ -107,6 +107,15 @@ target_link_libraries(routing_engine_benchmark PRIVATE namma_metro_core)
 add_executable(routing_engine_diag tools/diag.cpp)
 target_link_libraries(routing_engine_diag PRIVATE namma_metro_core)
 
+# tools/fifo_probe — does the FIFO violation proved in tests/test_fifo_violation.cpp
+# actually FIRE on a real feed? The tests establish the mechanisms exist using
+# hand-built fixtures; this evaluates arrival(query_time) at every candidate-set
+# transition on a real timetable and reports whether it is ever non-monotone.
+# Point it at a platform-collapsed BART feed (normalize_gtfs.py without --transfers),
+# which is the only configuration combining a real timetable with the crowd composite.
+add_executable(routing_engine_fifo_probe tools/fifo_probe.cpp)
+target_link_libraries(routing_engine_fifo_probe PRIVATE namma_metro_core)
+
 option(BUILD_BASELINE "Build the heap-allocation A/B baseline binary" OFF)
 if(BUILD_BASELINE)
   add_executable(routing_engine_baseline

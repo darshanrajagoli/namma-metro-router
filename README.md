@@ -390,6 +390,7 @@ namma-metro-router/
 ├── tests/                   # Google Test suite (10 files, 85 tests)
 ├── tools/                   # Measurement harnesses — see "Measured Behaviour"
 │   ├── diag.cpp             # Frontier-size distribution + lambda sensitivity
+│   ├── fifo_probe.cpp       # Does the FIFO violation fire on a real feed? (exact sweep)
 │   ├── ab.py                # Interleaved arena-vs-heap A/B
 │   └── scale.sh             # Latency vs timetabled-edge count sweep
 ├── scripts/
@@ -641,6 +642,45 @@ Across a **14.8× range** of edge counts, latency grows 21.1× — an empirical 
 even as the CSR grows from 234 KB (L2-resident) to 3.38 MB (well past the 1 MB L2),
 which is the sequential-access property the CSR layout was chosen for.
 
+### 5. The FIFO violation is real, proven, and does *not* fire on either real feed
+
+`tests/test_fifo_violation.cpp` proves the three mechanisms exist, using fixtures built
+to trigger them. That establishes the violation is *possible*. Whether it *occurs* on
+real data is a different question, and `tools/fifo_probe.cpp` answers it: it evaluates
+`arrival(query_time)` at **every candidate-set transition point** on a feed — exact, not
+sampled — and reports any pair where a later query arrives earlier. Swept over
+λ ∈ {0, 0.001, 0.01, 0.05, 0.1, 0.5, 1, 5, 1000}.
+
+| Feed | Links with **varying** per-link travel time | Longest single-link ride | Longest gap between departures | Violations, all λ |
+|---|---|---|---|---|
+| **Namma Metro** | **0 / 163 (0.00%)** | 229 s | 300 s | **0** |
+| **BART collapsed** (crowd objective) | **52 / 102 (50.98%)** | 960 s | 11,940 s | **0** |
+| **BART + transfers** (`TransferCount`) | 55 / 117 (47.01%) | 960 s | 55,680 s | **0** |
+
+**Namma is safe because the precondition is absent.** `build_namma_metro_gtfs.py` derives
+travel time from distance ÷ average speed, so every departure on a link rides for the
+same duration — measured: a spread of exactly 0 s across all 163 links. Mechanism 1
+cannot arise at any λ. This is the control, and it is what
+`FIFOViolation.ConstantPerLinkTravelTime_ArrivalIsMonotone` asserts.
+
+**BART is more interesting: the precondition IS met — half its links have varying travel
+times, spread up to 540 s — and the violation still does not occur.** The reason is
+structural and measurable. Window truncation needs a departure just outside
+`[t, t+W_max]` to beat everything inside it *on arrival*; anything outside departs at
+least 1800 s late, so it can only win if the rides inside exceed the window. **The
+longest ride on BART is 960 s — 1.9× below `W_max`.** The k-budget mechanism is bounded
+the same way: the head start compounds over 5 candidates and a 540 s travel spread
+cannot close it.
+
+> **What this licenses you to say, and what it does not.** The mechanisms are proven, the
+> precondition is present on a real feed, and the violation is nonetheless *unreached* —
+> because `W_max` and the headway are large relative to a single link's ride time. It is
+> **latent, not impossible**. The prediction this makes is falsifiable: a feed whose rides
+> are long relative to its bounded-wait window — intercity rail, not metro — is where it
+> would bite. That has not been tested.
+>
+> Reproduce: `./build/routing_engine_fifo_probe ./data_bart`
+
 ---
 
 ## Known Limitations
@@ -651,7 +691,7 @@ each has a test or a runtime message pinning the current behaviour.
 | Limitation | Effect | Where it's pinned |
 |---|---|---|
 | **Bounded-wait horizon.** `select_optimal_departure` considers only departures within `W_max_seconds` of arrival (default 1800 s). If the next service to a neighbour is further out, that neighbour is reported unreachable rather than "reachable after a long wait". | On a dense feed (≤30 min headway) no effect. On a sparse or late-night feed, reachable stations can be missed. Widen the window via `LookaheadConfig::W_max_seconds`. | `tests/test_fifo.cpp` (`BoundedWait_*`) |
-| **FIFO is not preserved in general.** Three mechanisms break it: the crowd composite contains no `departure_time` term, and both the `k_departures` budget and the `W_max` window truncate a candidate set that slides with query time. The last two fire even when selection minimises arrival. | A later query can return an *earlier* arrival. Downstream, consistency under extension fails, so a Pareto-dominated label at an intermediate node can be the only one able to catch an onward service — **a reachable destination can be reported unreachable**. Does not fire on the measured feeds: Namma has constant per-link travel time by construction, BART runs under `TransferCount`. | `tests/test_fifo_violation.cpp` (5 cases, incl. the control and the end-to-end consequence) |
+| **FIFO is not preserved in general.** Three mechanisms break it: the crowd composite contains no `departure_time` term, and both the `k_departures` budget and the `W_max` window truncate a candidate set that slides with query time. The last two fire even when selection minimises arrival. | A later query can return an *earlier* arrival. Downstream, consistency under extension fails, so a Pareto-dominated label at an intermediate node can be the only one able to catch an onward service — **a reachable destination can be reported unreachable**. **Measured: does not fire on either real feed at any λ** — Namma lacks the precondition entirely (0/163 links vary), and on BART the precondition holds (52/102) but the longest 960 s ride is 1.9× below the 1800 s window. Latent, not impossible; a feed with long rides relative to `W_max` is where it would bite. See [Measured Behaviour](#measured-behaviour) §5. | `tests/test_fifo_violation.cpp` (5 cases), `tools/fifo_probe.cpp` (exact transition sweep) |
 | **One composite-optimal departure per link.** The engine expands the λ-minimizer among the next *k* departures rather than branching on every departure. | The returned frontier is the set of non-dominated trade-offs **across route choices** at a fixed λ, not the full per-boarding frontier. | `tests/test_pareto_oracle.cpp` (`MultiDeparture_*`) |
 | **Crowd is a function of time of day only.** `crowd_weight` comes from a Gaussian peak model, identical for every edge; it does not vary by station or segment, and `penalty` is always 0. | **Measured consequence:** the second objective is effectively inert — frontiers hold one label at 96–100% of nodes and λ is a binary switch. See [Measured Behaviour](#measured-behaviour) §1–2. Position-dependent crowd is the fix. | `tools/diag.cpp`, `tests/test_fifo_invariant.cpp` |
 | **Calendars and `frequencies.txt` are parsed but not enforced.** All trips are treated as active on every service day. | Correct for the single-service-pattern metro feeds targeted here; wrong for a feed with weekday/weekend variants. | Runtime `[GTFS INFO]` line on every load |
