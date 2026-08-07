@@ -22,9 +22,14 @@
  * ║    • Lock contention in multi-threaded contexts             ║
  * ║    • Fragmentation after repeated alloc/free cycles         ║
  * ║                                                              ║
- * ║  For a Dijkstra loop that allocates ~50,000 Labels on a     ║
- * ║  dense urban transit graph, heap allocation adds ~2-5ms     ║
- * ║  of pure allocator overhead — 100× the routing latency.    ║
+ * ║  MEASURED, not assumed: on the workload where the Pareto     ║
+ * ║  frontier genuinely branches (BART + transfers, peak 280     ║
+ * ║  labels/query) the arena beats new/delete by ~31% at p50.    ║
+ * ║  On the workload where it does not (Namma, 82 labels per     ║
+ * ║  query) it is ~5% SLOWER than glibc's tcache. The arena's    ║
+ * ║  payoff scales with allocation volume; the optimisation      ║
+ * ║  only pays once the algorithm it supports does real work.    ║
+ * ║  See tools/ab.py and the README's Measured Behaviour.        ║
  * ║                                                              ║
  * ║  This arena:                                                 ║
  * ║    • Pre-allocates all memory at startup (O(1) amortized)   ║
@@ -85,8 +90,12 @@
 namespace namma_metro {
 
 /// Default arena capacity: 65536 Label objects (~1 MB for the 16-byte Label).
-/// Namma Metro Purple+Green lines: ~500 nodes, ~50k labels per complex query.
-/// Increase to 1<<20 for exhaustive stress tests.
+/// Sizing rule: capacity >= |V| * k_max, where k_max is the worst-case Pareto
+/// frontier size per node. Measured peak use is 280 live labels in a single query
+/// (BART, 103 platforms, transfer objective) and 82 on the Namma feed — roughly
+/// 230x headroom. Deliberately oversized: exhaustion throws rather than corrupting.
+/// Increase to 1<<20 for exhaustive stress tests or a network orders of magnitude
+/// larger (national rail at |V| ~ 8,000 would need 128,000 slots).
 static constexpr std::size_t ARENA_DEFAULT_CAPACITY = 1u << 16; // 65536
 
 /**

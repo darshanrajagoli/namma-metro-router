@@ -27,9 +27,12 @@
  *   a conservative proxy: if secondary_weight drops faster than 1 unit/second, the
  *   composite cost (travel + lambda*crowd) could exhibit FIFO-like violations.
  *
- *   The Gaussian model's max |d/dt(secondary_weight)| ≈ 1.8 units/second (at peak),
- *   but over 60-second intervals (the minimum between edges), delta_crowd >= -108,
- *   which satisfies dc >= -dt for all adjacent edge pairs.
+ *   Derivative of the model, c(t) = 100 + 900*exp(-(t-T)^2 / 2*sigma^2) with
+ *   sigma = 3600: c'(t) = -900 * ((t-T)/sigma^2) * exp(...). This is ZERO at the
+ *   peak itself and is maximised in magnitude at |t - T| = sigma, where
+ *     |c'|max = 900 * e^(-1/2) / 3600 ≈ 0.15 units/second.
+ *   So over the 60-second intervals used below, delta_crowd >= -9.1, comfortably
+ *   satisfying dc >= -dt (i.e. >= -60) for every adjacent edge pair.
  *
  * IF THESE TESTS FAIL:
  *   The crowd model parameters in graph_builder.cpp were changed and now produce

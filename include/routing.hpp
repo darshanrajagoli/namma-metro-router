@@ -25,13 +25,24 @@
  *   ACROSS ROUTE CHOICES at a fixed lambda — not the full frontier over every
  *   possible boarding on a multi-departure link. See tests/test_pareto_oracle.cpp.
  *
- *   Markowitz analogy:
- *     Scalarized objective: min E[travel_time] + λ·σ[secondary_weight]
- *     where λ is the user's risk-aversion coefficient (wait tolerance).
- *     This is isomorphic to Markowitz mean-variance: min σ² - μ/λ.
- *     Limitation: transit delays are right-skewed (bounded below by 0,
- *     unbounded above), so variance symmetrically penalises early arrivals.
- *     Semi-variance or CVaR would be economically superior. See write-up.tex.
+ *   Markowitz analogy (INFORMAL — read the caveat):
+ *     Departure selection minimises the weighted sum
+ *       travel_time + lambda * secondary_weight + penalty,
+ *     and lambda plays the role Markowitz's risk-aversion coefficient does:
+ *     sweeping it traces out a trade-off curve. That is where the
+ *     correspondence ends. This objective is DETERMINISTIC and LINEAR in the
+ *     second term; Markowitz minimises a quadratic form over a covariance
+ *     matrix of random returns. There is no probability distribution, no
+ *     variance and no covariance anywhere in this code — secondary_cost is a
+ *     plain running sum — so the objective is NOT isomorphic to mean-variance
+ *     optimisation and is deliberately not written with sigma notation.
+ *     Two further limits: lambda-scalarisation recovers only the CONVEX HULL
+ *     of a Pareto frontier (which is why this engine is multi-label-correcting
+ *     and maintains the frontier directly), and if crowding were modelled
+ *     stochastically, variance would be the wrong risk measure — transit
+ *     delays are right-skewed, so variance penalises early arrivals as heavily
+ *     as late ones. Semi-variance or CVaR are the appropriate proxies.
+ *     See docs/write-up.tex section 4 and README.md.
  */
 
 namespace namma_metro
@@ -340,8 +351,14 @@ namespace namma_metro
      *   - insert_and_dominate pruning: O(k) worst-case per call, called O(k·|E|) times
      *     → O(k²·|E|)
      *   - Full bound: O(k·|E|·(k + log(k·|V|)))
-     * For BMRCL: k≤16, |E|≈300, |V|≈60 → ~76,800 pruning ops + ~62,400 heap ops.
-     * The pruning term dominates at BMRCL scale.
+     * Instantiated on the measured Namma Metro feed — note |E| counts one edge per
+     * TIMETABLED DEPARTURE, not one per track segment, so it is driven by service
+     * frequency: |V| = 82, |E| = 35,588 at a 5-min headway, worst-case k <= 16.
+     *   pruning: k^2*|E|             = 9.1e6 ops
+     *   heap:    k*|E|*log2(k*|V|)   = 5.9e6 ops
+     * The pruning term dominates. The bound is a worst-case ceiling: the observed
+     * maximum frontier size is k = 5 (BART/transfers) and k = 1 on the Namma feed,
+     * so real cost runs roughly 25x below it. See docs/write-up.tex section 7.
      * Note: the single-label Dijkstra bound O((E+V)log V) does NOT apply here —
      * in the label-correcting setting each node may be settled up to k times.
      */

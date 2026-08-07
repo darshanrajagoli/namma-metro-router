@@ -122,7 +122,7 @@
     \begin{note}
     This choice is not cosmetic; it determines whether the frontier is
     non-trivial at all. Measured over 300 queries per feed
-    (\texttt{tools/diag.cpp}): under \textsc{TransferCount} on BART, $73.0\%$ of
+    (\texttt{tools/diag.cpp}): under \textsc{TransferCount} on BART, $71.35\%$ of
     reached nodes carry a frontier with $|\mathcal{L}(v)| > 1$ and the maximum
     observed is $5$. Under \textsc{CrowdExposure} on the Namma Metro feed the
     figure is $0.0\%$ --- every frontier is a single label --- because
@@ -140,8 +140,11 @@
     \]
     where $\tau(e)$ is travel time, $\lambda \ge 0$ is the crowd-aversion
     parameter, $\crowd(e)$ is the static crowd weight of edge $e$, and
-    $\pen: V \times V \times \N \to \R_{\ge 0}$ is a time-dependent
-    surcharge modelling wait-time cost derived from IUDX AFC gate data.
+    $\pen: V \times V \times \N \to \R_{\ge 0}$ is a reserved slot for a
+    time-dependent wait surcharge. \textbf{In this build $\pen \equiv 0$ on every
+    edge} (\texttt{graph\_builder.cpp}); no occupancy or fare-gate data is used
+    anywhere in the project, and none is openly published by either operator.
+    The term is retained because the FIFO analysis below is stated in terms of it.
 
     \begin{note}
     The $\lambda \cdot \crowd(e)$ term is \textbf{time-independent}: it is a
@@ -195,7 +198,7 @@
     This is a \emph{sufficient} condition for FIFO, not a necessary one.
     The intra-interval necessity analysis (see proof) shows the tighter condition
     $\pen(t_2) - \pen(t_1) \ge 0$ within each inter-departure interval.
-    For the scaffold where $\pen = 0$ identically, both conditions hold
+    In this build, where $\pen = 0$ identically, both conditions hold
     trivially. The sufficient condition $\ge -(t_2-t_1)$ is the operationally
     useful constraint because it is the one verified by \texttt{test\_fifo\_invariant.cpp}.
     \end{note}
@@ -366,16 +369,23 @@ characterize the same tradeoff geometry without requiring structural isomorphism
     maintains the full frontier at each node simultaneously, recovering all
     Pareto-optimal labels regardless of the frontier's geometry.
 
-    \textbf{Concrete example.} Three paths from $s$ to $t$:
-    $(60\text{min}, 100\text{ crowd})$,
-    $(75\text{min}, 40\text{ crowd})$,
-    $(90\text{min}, 35\text{ crowd})$.
-    The middle path is Pareto-dominated only if
-    $75\text{min} - 60\text{min} = 15\text{min}$ of extra time is
-    ``worth'' saving $60$ crowd units, while the third path costs 15 more
-    minutes to save only 5 more crowd units. For intermediate $\lambda$,
-    the second path lies below the line segment from first to third —
-    a non-convex kink that no $\lambda$ scalarisation selects.
+    \textbf{Concrete example.} Three paths from $s$ to $t$, written as
+    (arrival time, crowd) pairs: $A = (60, 100)$, $B = (61, 99)$, $C = (90, 35)$.
+    All three are Pareto-optimal --- $B$ arrives later than $A$ but is less
+    crowded, and arrives earlier than $C$ but is more crowded, so nothing
+    dominates it. Yet $B$ is never the $\lambda$-argmin of $t + \lambda c$:
+    \[
+        B \prec A \iff 61 + 99\lambda < 60 + 100\lambda \iff \lambda > 1,
+    \]
+    \[
+        B \prec C \iff 61 + 99\lambda < 90 + 35\lambda \iff \lambda < \tfrac{29}{64} \approx 0.453 .
+    \]
+    No $\lambda$ satisfies both, so no scalarised run ever returns $B$.
+    Geometrically the chord from $A$ to $C$ has slope $-65/30$ and passes through
+    crowd $97.83$ at $t = 61$, while $B$ sits at $99$ --- strictly \emph{above} the
+    chord. That is the non-convex kink. The example must be chosen with care: a
+    middle point lying \emph{below} the chord is on the convex hull and \emph{is}
+    selected over a range of $\lambda$.
 \end{remark}
 
 \subsection{Critical Limitations}
@@ -503,14 +513,28 @@ characterize the same tradeoff geometry without requiring structural isomorphism
     The algorithm is globally Pareto-optimal if and only if for every edge
     $(u,v)$ on every Pareto-optimal path, the optimal departure falls within
     $[t, t + W_{\max}]$ and is among the $k$ departures enumerated. For
-    BMRCL with 6-minute frequency and $W_{\max} = 1800\text{s}$ (30 min),
-    the window covers approximately 5 departures, so $k=5$ is sufficient
-    provided the network does not exhibit worst-case cascade misses.
+    the measured Namma Metro feed at a 5-minute headway with
+    $W_{\max} = 1800\text{s}$ (30 min), the window spans six to seven departures,
+    so $k = 5$ does \emph{not} enumerate all of them.
 
-    In practice, the synthetic pen $= 0$ in the scaffold means composite
-    = $\tau + \lambda \cdot \crowd$ is time-independent, and no cascade miss
-    can occur — the algorithm is optimal for the scaffold. The suboptimality
-    risk is present only when non-zero time-dependent penalties are introduced.
+    In this build $\pen \equiv 0$, so the composite $\tau + \lambda\cdot\crowd$ is a
+    \emph{static property of each edge}: it does not vary with the query time $t$.
+    What does vary with $t$ is the \emph{candidate set} --- both the window
+    $[t, t + \wmax]$ and the $k$-departure budget slide forward as $t$ increases ---
+    so a departure invisible at $t_1$ can become visible at $t_2 > t_1$. If that
+    departure has a smaller arrival time than the previous selection, the selected
+    arrival is not monotone in $t$; that is a FIFO failure, and
+    \Cref{lem:fifo-pen} does not rule it out, because that lemma constrains only
+    $\pen$.
+
+    On the feeds measured here the effect is masked, for two independent reasons.
+    The Namma Metro builder derives $\tau$ from inter-station distance and a fixed
+    average speed, so $\tau$ is identical for every departure on a given link and
+    the argmin is driven by $\crowd$ alone. The BART configuration runs under
+    \textsc{TransferCount}, where \texttt{select\_optimal\_departure} minimises
+    arrival directly. The suboptimality risk is therefore latent rather than
+    observed, and it is a property of the \emph{truncation} of the candidate set,
+    not of the $\pen$ term.
 \end{remark}
 
 % ══════════════════════════════════════════════════════════════════════════

@@ -16,7 +16,8 @@ namespace namma_metro
     // Parameters tuned to Namma Metro ridership patterns.
     // secondary_weight ∈ [0, 1000] (0=empty, 1000=crush load).
     //
-    // FIFO safety: max |d/dt(crowd)| ≈ 0.18 << 1.0 — constraint satisfied.
+    // FIFO safety: |d/dt(crowd)| is zero AT the peak and maximal at |t - PEAK| = SIGMA,
+    // where it equals 900 * e^(-1/2) / SIGMA ≈ 0.15 << 1.0 — constraint satisfied.
     // Verified by debug-mode assertion in build() below.
     static uint32_t synthetic_crowd_weight(uint32_t departure_time_seconds)
     {
