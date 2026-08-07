@@ -490,13 +490,33 @@ python3 scripts/normalize_gtfs.py raw_bart data_bart
 taskset -c 3 ./build/routing_engine_benchmark ./data_bart
 ```
 
-> **Expected output for BART `--transfers`** — if your numbers differ materially, the
-> feed format has changed:
-> `transfers: 120 emitted (25 from feed, 95 defaulted to 120s)`,
-> `stops kept: 103`, `trips kept: 2689`, then from the engine
-> `Nodes: 103 | Edges: 35134 | Transfers: 120`, `Second objective: transfer count`,
+> **⚠ BART's published feed is a moving target, and it has already moved.** The figures in
+> the table above were measured against the feed as of **2026-07-31**. Re-fetched on
+> **2026-08-07**, BART had added service:
+>
+> | | Snapshot the numbers were taken on (2026-07-31) | Live feed (2026-08-07) |
+> |---|---|---|
+> | `trips kept` | 2,689 | **3,762** (+40%) |
+> | `Edges` | 35,134 | **52,116** (+48%) |
+> | `stops kept` (`--transfers`) | 103 | 103 — unchanged |
+> | `transfers: 120 emitted` | 25 from feed, 95 defaulted | 24 from feed, 96 defaulted |
+>
+> Node count, transfer count and the 0-row FK drop are unchanged, so the **pipeline is
+> fine** — BART simply publishes more trips than it did. The latency figures above are
+> therefore **tied to the 2026-07-31 snapshot** and a re-run today will be slower, roughly
+> in line with the |E|^1.13 scaling in [Measured Behaviour](#measured-behaviour) §4. They
+> have not been restated, because restating them against a feed that will move again next
+> quarter is not more honest — pinning the snapshot is.
+>
+> **Expected output, live feed (2026-08-07), for BART `--transfers`:**
+> `transfers: 120 emitted (24 from feed, 96 defaulted to 120s)`,
+> `stops kept: 103`, `trips kept: 3762`, then from the engine
+> `Nodes: 103 | Edges: 52116 | Transfers: 120`, `Second objective: transfer count`,
 > and `Dropped (bad FK): 0`.
-> Without `--transfers`: `stops kept: 50`, `Nodes: 50 | Edges: 35134 | Transfers: 0`.
+> Without `--transfers`: `stops kept: 50`, `Nodes: 50 | Edges: 52116 | Transfers: 0`.
+>
+> If *these* numbers differ materially in turn, the feed has moved again — check
+> `trips kept` first, since that is what drives `Edges`.
 
 > The C++ parser reads GTFS columns **positionally**; `normalize_gtfs.py` rewrites a real
 > feed (which orders columns by header name) into that layout, keeps rail routes, and
