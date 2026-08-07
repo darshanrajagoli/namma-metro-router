@@ -44,12 +44,18 @@ Built to demonstrate systems-level C++ and applied optimization.
 > CPUID+RDTSC / RDTSCP+CPUID so neither the read nor the surrounding work is
 > reordered across it. RDTSCP and InvariantTSC are both verified present at startup.
 >
-> **What is *not* controlled:** these numbers were taken under WSL2, where MSR
-> frequency locking is unavailable (Hyper-V blocks `WRMSR`), so
-> `scripts/stabilize_cpu.sh` cannot pin the governor or disable Turbo Boost. Turbo
-> variance is therefore present. Running the same binary on native Linux with that
-> script applied removes it; the run-to-run spread below is the honest bound in the
-> meantime.
+> **What is *not* controlled:** these numbers were taken under WSL2, which exposes no
+> `cpufreq` sysfs and where Hyper-V blocks `WRMSR`, so `scripts/stabilize_cpu.sh` cannot
+> pin the governor or disable Precision Boost. Boost variance is therefore present.
+>
+> **And on this hardware that script would not fully fix it on native Linux either.** It
+> was written for an Intel machine. Its boost control targets
+> `/sys/devices/system/cpu/intel_pstate/no_turbo`, which does not exist on AMD — the
+> `acpi-cpufreq` fallback is the path that actually applies — and its BD PROCHOT step
+> writes MSR `0x1FC` (`MSR_POWER_CTL`), which is **Intel-architectural and undefined on
+> AMD**, so that write faults on Zen 4. Governor pinning and the fallback boost control
+> do work on bare metal; the BD PROCHOT step never has on this CPU. The run-to-run
+> spread below is the honest bound.
 
 | Metric | Latency | Observed range (9 runs) |
 |--------|---------|---|
@@ -76,7 +82,7 @@ Equivalently **≈ 6,800 single-source all-destinations queries/sec** on one cor
 > plus 1,000 warm-up queries.
 >
 > Measured under WSL2, where MSR frequency locking is unavailable (Hyper-V blocks
-> WRMSR), so Turbo Boost variance is present. Figures are medians over 9 consecutive
+> WRMSR), so Precision Boost variance is present. Figures are medians over 9 consecutive
 > AC-power runs with the observed range beside them; tail percentiles vary more than
 > p50, which is why nothing here is quoted to more than three significant figures.
 >
@@ -135,7 +141,7 @@ fixed overhead of the harness itself, not as a result.
 
 </details>
 
-**Hardware:** Dell G15 5520 (Intel Core i7-12700H, 16GB DDR5), WSL2 Ubuntu 24.04,
+**Hardware:** Dell G15 5535 (AMD Ryzen 5 7640HS, 16GB DDR5), WSL2 Ubuntu 24.04,
 GCC 13, `-O3 -march=native`.
 
 ---
@@ -165,7 +171,7 @@ constraint `d/dt(cost) ≥ -1` on the time-varying term: cost cannot fall faster
 one unit per second, so waiting can never beat departing by more than the wait itself.
 
 In this build the binding term is `crowd_weight`, whose Gaussian peak model has
-max |d/dt| ≈ 0.18 — comfortably inside the bound, and checked at graph-build time
+max |d/dt| ≈ 0.15 — comfortably inside the bound, and checked at graph-build time
 under `NDEBUG`-off builds (`src/graph_builder.cpp`) as well as in
 `tests/test_fifo_invariant.cpp`. The `penalty` field is a second time-varying term the
 same bound would govern, but it is currently always 0 (see **Known Limitations**), so
@@ -247,8 +253,8 @@ prefetching during Dijkstra relaxation.
 The CSR stores **one edge per timetabled departure**, not one per neighbour, so its
 size is driven by service frequency rather than by station count. At a 5-min headway
 over an 05:00–23:00 service day the 82-station network yields **35,588 edges ×
-20 bytes ≈ 695 KB** — too large for a 48 KB L1d, but resident in the 1.25 MB L2 of an
-Alder Lake P-core, and traversed sequentially within each node's range so the hardware
+20 bytes ≈ 695 KB** — too large for a 32 KB L1d, but resident in the 1 MB L2 of a Zen 4
+core, and traversed sequentially within each node's range so the hardware
 prefetcher stays engaged. Only the *working set* of a single query — the visited nodes'
 frontier vectors and the arena slots in use — stays L1-resident.
 
@@ -270,9 +276,11 @@ Taking round numbers with a worst-case `k = 16`: 100 × 16 × 200 = **320,000 he
 entries**. Each `Label` is 16 bytes (4 × uint32_t), so worst-case heap memory ≈ **5 MB**.
 
 > **How loose that bound is, measured.** The observed maximum frontier size on any feed
-> is **k = 2**, and peak surviving labels in a single query is **82** — one per node —
-> against an arena sized for 65,536. The theoretical bound is roughly **800× above**
-> what the workload actually uses; see [Measured Behaviour](#measured-behaviour) §1.
+> is **k = 5** (BART under the transfer objective; k = 1 everywhere on the Namma feed),
+> and peak surviving labels in a single query is **280** — against an arena sized for
+> 65,536, i.e. roughly **230× headroom**. The theoretical 320,000-entry bound is about
+> **1,100× above** what the workload actually uses; see
+> [Measured Behaviour](#measured-behaviour) §1.
 > The arena does not silently overrun regardless: `allocate()` **throws** when the bump
 > pointer reaches capacity, so exhaustion surfaces as an exception rather than as a
 > corrupted frontier. The capacity would only bind on a network orders of magnitude
@@ -347,7 +355,11 @@ namma-metro-router/
 │   ├── ab.py                # Interleaved arena-vs-heap A/B
 │   └── scale.sh             # Latency vs timetabled-edge count sweep
 ├── scripts/
-│   ├── stabilize_cpu.sh     # Governor=performance, disable Turbo, BD PROCHOT
+│   ├── normalize_gtfs.py    # Any real GTFS feed → this engine's positional layout
+│   ├── build_namma_metro_gtfs.py  # Real BMRCL topology + modelled timetable
+│   ├── generate_synthetic_gtfs.py # 10-station demo feed (used by CI)
+│   ├── stabilize_cpu.sh     # Governor=performance, boost off. Written for Intel —
+│   │                        # its BD PROCHOT step does not apply on AMD (see below)
 │   └── enable_gmode.sh      # Dell G-Mode maximum fan control
 └── docs/write-up.tex        # Formal mathematical write-up (FIFO, dominance, Markowitz analogy)
 ```
@@ -568,9 +580,10 @@ allocation makes it faster" — was **false on the workload originally measured*
 optimisation only pays once the algorithm it supports is doing real work. Both halves of
 that are reproducible with `python3 tools/ab.py <feed> 7 build`.
 
-The baseline binary passes all 73 routing, graph, parser and transfer tests under
-ASan/UBSan (only the 7 `ArenaTest.*` cases fail, since they assert arena internals a heap
-allocator does not have), so the two arms compute the same thing.
+The baseline binary passes the routing, graph, parser and transfer suites under
+ASan/UBSan; the failures are confined to `ArenaTest.*` / `ArenaCapacityTest.*`, which
+assert arena internals — bump index, free-list length, slot ownership, exhaustion — that a
+heap allocator does not have. The two arms therefore compute the same thing.
 
 ### 4. Scaling is near-linear in timetabled edges
 
@@ -587,7 +600,7 @@ which varies |E| alone:
 
 Across a **14.8× range** of edge counts, latency grows 21.1× — an empirical exponent of
 **|E|^1.13**, i.e. near-linear with a mild log/cache term. Per-edge cost rises only 42%
-even as the CSR grows from 234 KB (L2-resident) to 3.38 MB (well past the 1.25 MB L2),
+even as the CSR grows from 234 KB (L2-resident) to 3.38 MB (well past the 1 MB L2),
 which is the sequential-access property the CSR layout was chosen for.
 
 ---
