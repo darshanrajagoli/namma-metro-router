@@ -7,7 +7,9 @@
 
 /**
  * @file test_fifo.cpp
- * @brief Google Test suite validating FIFO preservation under Bounded-Wait Lookahead.
+ * @brief Google Test suite for Bounded-Wait Lookahead departure selection.
+ *        Covers the cases where the policy behaves correctly. It does NOT
+ *        establish FIFO preservation — see tests/test_fifo_violation.cpp.
  *
  * PURPOSE:
  *   These tests discriminate Bounded-Wait Lookahead from a naive "strict

@@ -21,7 +21,7 @@
  *   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
  *   cmake --build build --target routing_engine_benchmark -j$(nproc)
  *
- *   # 3. Pre-fault and benchmark (pinned to isolated core 3 — avoid core 0, OS interrupts)
+ *   # 3. Pre-fault and benchmark (pinned to core 3 — avoid core 0, OS interrupts)
  *   taskset -c 3 ./build/routing_engine_benchmark ./data
  *
  * EXPECTED OUTPUT FORMAT (copy into README.md table):
@@ -32,7 +32,7 @@
  *   | p99    |      XXXXX  |
  *
  * BENCHMARK CONFIGURATION STRING (paste into README.md):
- *   "Benchmarks collected on isolated core 3 with taskset, frequency scaling
+ *   "Benchmarks collected on core 3 with taskset, frequency scaling
  *    disabled, Precision Boost off, arena pre-faulted. Serialization via CPUID+RDTSC/RDTSCP+CPUID."
  */
 
@@ -116,7 +116,7 @@ int main(int argc, char* argv[]) {
                 "Core 0 handles OS interrupt delivery — p99 will include interrupt jitter.\n",
                 current_cpu);
         } else {
-            std::printf("[OK] Pinned to CPU 3 — interrupt isolation confirmed.\n");
+            std::printf("[OK] Pinned to CPU 3 (affinity only — not isolcpu-isolated).\n");
         }
     }
 
@@ -286,7 +286,7 @@ int main(int argc, char* argv[]) {
             __asm__ volatile("" : : "r"(&result) : "memory");
         },
 #else
-    namma_metro::QueryResult reusable; // persistent buffers -> zero allocations in the timed loop
+    namma_metro::QueryResult reusable; // reused buffers -> no heap allocation in the timed loop
     auto stats = namma_metro::bench::run_benchmark(
         [&]() {
             const auto& q = valid_queries[qidx(rng)];
@@ -323,7 +323,7 @@ int main(int argc, char* argv[]) {
     std::printf("| p95  | %.0f ns |\n", stats.p95_ns);
     std::printf("| p99  | %.0f ns |\n", stats.p99_ns);
     std::printf("\nHardware config string:\n");
-    std::printf("Benchmarks collected on isolated core 3 with taskset, "
+    std::printf("Benchmarks collected on core 3 with taskset, "
                 "frequency scaling disabled, Precision Boost off, arena pre-faulted. "
                 "Serialization via CPUID+RDTSC/RDTSCP+CPUID. "
                 "Note: if benchmarked under WSL2, MSR frequency locking unavailable — "

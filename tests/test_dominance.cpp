@@ -9,9 +9,10 @@
  *
  * PURPOSE:
  *   These tests define the exact correctness contract for the Pareto label
- *   insertion and dominance pruning logic. They will FAIL until you implement
- *   insert_and_dominate() in src/routing.cpp following the three-step protocol
- *   in routing.hpp.
+ *   insertion and dominance pruning logic in
+ *   ParetoLabelSet::insert_and_dominate() (src/routing.cpp). Each failure
+ *   message names the step of the three-step protocol in routing.hpp §2 that
+ *   the failure implicates.
  *
  * MATHEMATICAL CONTEXT:
  *   Label (t, c) dominates (t', c') iff t ≤ t' AND c ≤ c'.

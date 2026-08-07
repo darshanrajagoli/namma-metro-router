@@ -101,7 +101,7 @@ namespace namma_metro
                       return a->stop_sequence < b->stop_sequence;
                   });
 
-        // ── H3: Stop-ID → dense node index mapping ────────────────────────────
+        // ── Stop-ID → dense node index mapping ────────────────────────────────
         // If the caller provides GTFSParser::stop_index_map(), use it exclusively.
         // Building a local index from sorted_ptrs insertion order produces a
         // different ordering than the parser's index, corrupting all queries that
@@ -191,7 +191,7 @@ namespace namma_metro
                 const uint32_t u = it_u->second;
                 const uint32_t v = it_v->second;
 
-                // C10: Reject edges where interpolation produced arrival before departure
+                // Reject edges where interpolation produced arrival before departure
                 if (to.arrival_time < from.departure_time)
                 {
                     std::fprintf(stderr, "[GRAPH WARN] negative travel time dropped: "
@@ -201,7 +201,7 @@ namespace namma_metro
                     continue;
                 }
 
-                // C11: Zero-weight self-edges cause infinite Dijkstra relaxation loops.
+                // Zero-weight edges cause infinite Dijkstra relaxation loops.
                 // Enforce minimum travel time of 1 second.
                 const uint32_t raw_travel = to.arrival_time - from.departure_time;
                 const uint32_t travel_time = (raw_travel == 0) ? 1u : raw_travel;
@@ -363,7 +363,7 @@ namespace namma_metro
                     continue;
                 }
 
-                // Same guard as C11 on service edges: clamp to a minimum of 1
+                // Same guard as on service edges: clamp to a minimum of 1
                 // second. GTFS legitimately uses min_transfer_time = 0 for a
                 // same-platform change, and BART's feed does. Transfers are
                 // bidirectional, so a pair of genuinely zero-cost transfer edges
@@ -436,7 +436,7 @@ namespace namma_metro
                     const int64_t dc = static_cast<int64_t>(e2->secondary_weight) - static_cast<int64_t>(e1->secondary_weight);
                     if (dt > 0 && dc < -dt)
                     {
-                        // v8 fix: assert(false) here sent SIGABRT, killing the test
+                        // throw, not assert: assert(false) sent SIGABRT and killed the test
                         // binary before any JUnit XML was written — CI showed a crash
                         // with no named test failure. Replaced with throw so the test
                         // framework catches it and records a structured failure.

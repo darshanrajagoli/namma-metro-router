@@ -18,8 +18,8 @@
  *   Graph G = (V, E) where V = transit stops, E = timetabled service legs.
  *   Edge weight: w(u, v, t) = arrival_time at v given departure at u at time t.
  *
- *   Objective: compute the non-dominated (time, crowd) frontier between a source
- *   node s and all reachable destinations. SCOPE NOTE: the engine expands one
+ *   Objective: compute the non-dominated (arrival_time, second-objective)
+ *   frontier between a source node s and all reachable destinations. SCOPE NOTE: the engine expands one
  *   composite-optimal departure per link (the lambda-minimizer among the next k
  *   departures), so the returned frontier is the set of non-dominated trade-offs
  *   ACROSS ROUTE CHOICES at a fixed lambda — not the full frontier over every
@@ -85,7 +85,9 @@ namespace namma_metro
     // ═══════════════════════════════════════════════════════════════════════════
 
     /**
-     * @brief Maintains the non-dominated (time, crowd) Pareto frontier for one node.
+     * @brief Maintains the non-dominated (arrival_time, secondary_cost) frontier for one node.
+     *        The second dimension is crowd exposure or transfer count, fixed at
+     *        graph-build time by SecondObjective.
      *
      * Invariants (must hold after every call to insert_and_dominate):
      *   1. All labels are sorted ascending by arrival_time.
@@ -226,10 +228,18 @@ namespace namma_metro
      *
      * The lookahead replaces strict "board-next-available-train" with a policy
      * that evaluates k upcoming departures within a W_max-second window and
-     * selects the one minimizing composite cost = travel_time + penalty.
+     * selects the one minimising a composite cost. Two regimes, see
+     * select_optimal_departure below:
+     *   CrowdExposure, lambda > 0 : travel_time + lambda*secondary_weight + penalty
+     *   lambda == 0, or TransferCount : departure_time + travel_time + penalty
+     *                                   (i.e. minimise ARRIVAL)
      *
-     * This is necessary to preserve the FIFO property under synthetic crowd
-     * penalties. See docs/write-up.tex for the mathematical proof.
+     * The policy exists so that deliberately waiting for a less-crowded departure
+     * is representable at all, which a strict next-train rule cannot do. It does
+     * NOT preserve FIFO in general — see the FIFO note on
+     * select_optimal_departure, tests/test_fifo_violation.cpp for the three
+     * mechanisms that break it, and docs/write-up.tex section 2 for the corrected
+     * consistency-under-extension argument.
      */
     struct LookaheadConfig
     {
@@ -253,11 +263,13 @@ namespace namma_metro
      *   penalty, causing earlier-departure-later-arrival, breaking Dijkstra's
      *   optimality subpath property.
      *
-     *   The Bounded-Wait Lookahead resolves this by:
+     *   The Bounded-Wait Lookahead addresses that specific failure by:
      *     For each of the next k departures of service (u→v) with
      *     departure_time in [current_time, current_time + W_max]:
      *       composite_cost(e) = e.travel_time + lambda * e.secondary_weight + e.penalty
      *     Return the edge e* minimizing composite_cost(e).
+     *   It addresses that case. It does not make the function FIFO-safe in
+     *   general — read the next paragraph before relying on it.
      *
      *   FIFO — READ THIS BEFORE RELYING ON IT:
      *     The penalty derivative constraint d/dt(penalty) >= -1 bounds any waiting
@@ -287,31 +299,31 @@ namespace namma_metro
      * @return              The optimal Edge to board, or std::nullopt if no
      *                      valid departure exists within the W_max window.
      *
-     * Implementation hints:
-     *   1. Use graph.edges_of(u) to get the [begin, end) edge range.
-     *   2. Since edges are sorted by departure_time within each source node
-     *      (guaranteed by GraphBuilder), use std::lower_bound to find the
-     *      first edge with departure_time >= current_time.
-     *   3. Iterate forward, counting only edges where `e->destination == v`
-     *      toward the k_departures budget. Skip edges to other destinations
-     *      without incrementing the counter. Break when:
-     *        (a) the k budget (edges-to-v) is exhausted, OR
-     *        (b) e->departure_time > current_time + W_max_seconds.
-     *      IMPORTANT: the CSR stores ALL edges from u sorted by departure_time,
-     *      not just edges to v. Failing to skip non-v edges will exhaust k
-     *      early and miss valid departures to v on multi-destination nodes.
-     *   4. For each candidate edge (where e->destination == v), compute:
-     *        composite_cost = (float)e->travel_time
-     *                       + config.lambda * (float)e->secondary_weight
-     *                       + (float)e->penalty
-     *      Use float arithmetic: lambda is float and mixing with uint32_t needs
-     *      explicit casts to avoid implicit narrowing.
-     *      DO NOT include wait time (departure_time - current_time) in the
-     *      composite. Wait is bounded by W_max_seconds and does not affect which
-     *      departure minimises composite — it would only bias toward earlier
-     *      trains regardless of crowd/travel tradeoffs.  Tests 5 and 6 in
-     *      test_fifo.cpp will FAIL if you include wait.
-     *   5. Return std::nullopt if no edges fall within the window.
+     * How it works, and the two constraints that are easy to get wrong:
+     *   1. Edges of u are sorted by departure_time (GraphBuilder guarantees it),
+     *      so std::lower_bound finds the first boardable departure in
+     *      O(log deg(u)). The scan then runs forward until the window closes.
+     *   2. The CSR range holds ALL departures from u, not just those to v. Edges
+     *      to other destinations are skipped WITHOUT consuming the k budget —
+     *      otherwise a busy interchange could exhaust k on edges bound elsewhere
+     *      before examining a single edge to v, and report v unreachable.
+     *   3. Cost is computed in float because lambda is float; the uint32_t fields
+     *      need explicit casts to avoid implicit-narrowing warnings.
+     *   4. Which cost is minimised depends on the regime, and this is load-bearing:
+     *        lambda > 0 and CrowdExposure -> travel + lambda*crowd + penalty.
+     *          Absolute time is deliberately EXCLUDED here. Waiting for a
+     *          less-crowded train is the entire point of the policy, so charging
+     *          for the wait would defeat it. tests/test_fifo.cpp
+     *          KDeparturesLimitRespected fails if a wait term is added.
+     *        lambda == 0, or TransferCount -> departure_time + travel + penalty,
+     *          which IS the arrival time. Required, because in both those cases
+     *          the second objective cannot discriminate between candidates on a
+     *          link, so arrival is the only thing left to optimise.
+     *          tests/test_fifo.cpp LambdaZero_MinimizesArrivalTime_NotTravelTimeAlone
+     *          fails if departure_time is omitted, and
+     *          tests/test_transfers.cpp
+     *          DepartureSelectionMinimisesArrivalUnderTransferCount pins the
+     *          TransferCount half.
      */
     std::optional<Edge> select_optimal_departure(
         const CSRGraph &graph,
@@ -341,7 +353,7 @@ namespace namma_metro
     /**
      * @brief Multi-label correcting Pareto-Dijkstra router.
      *
-     * Computes the non-dominated (time, crowd) frontier from a source node to all
+     * Computes the non-dominated (arrival_time, secondary_cost) frontier from a source node to all
      * reachable destinations (across route choices at a fixed lambda; see the
      * scope note in the file header).
      *
@@ -391,7 +403,8 @@ namespace namma_metro
             // Reserve dest_scratch_ to the maximum out-degree in the graph.
             // A fixed reserve of 64 would trigger reallocation on high-frequency
             // interchange nodes (Kempegowda/Majestic can have >100 departure edges).
-            // Any reallocation inside the hot routing loop violates the zero-allocation invariant.
+            // Any reallocation inside the hot routing loop would break the
+            // allocation-free property of run(src, dep, QueryResult&).
             // One O(V) pass at construction prevents all hot-path allocations.
             uint32_t max_deg = 0;
             for (uint32_t u = 0; u < graph.num_nodes; ++u)
@@ -440,8 +453,9 @@ namespace namma_metro
         // The per-node Pareto frontiers live in the caller-owned QueryResult passed to
         // run(..., QueryResult&). Reusing one QueryResult across queries keeps those
         // vectors' capacity, so no separate working-set member is needed and the timed
-        // loop stays allocation-free. (best_time_ was removed in v8: written every run()
-        // but never read — the lazy-deletion filter uses the frontier labels directly.)
+        // loop stays allocation-free. A per-node best-arrival-time cache was removed:
+        // it was written on every run() and never read, because the lazy-deletion filter
+        // consults the frontier labels directly (see the note in routing.cpp).
         std::vector<uint32_t> dest_scratch_;        ///< unique-dest work buffer
     };
 

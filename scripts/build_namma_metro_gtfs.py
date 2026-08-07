@@ -23,7 +23,7 @@ USAGE
     python3 scripts/build_namma_metro_gtfs.py raw_namma/bengaluru_metro_network.csv data
     #                                          ^ real BMRCL network      ^ engine reads this
 
-Then: taskset -c 3 ./build_release/routing_engine_benchmark ./data
+Then: taskset -c 3 ./build/routing_engine_benchmark ./data
 """
 
 import csv
@@ -207,7 +207,7 @@ def main():
     print(f"  trips generated : {len(trips_out)}   (headway {headway}s, speed {speed_kmh} km/h, dwell {dwell}s, {opt.get('start','05:00')}-{opt.get('end','23:00')})")
     print(f"  stop_times      : {len(st_out)}")
     print(f"  -> wrote GTFS to: {out}/")
-    print(f"  run: taskset -c 3 ./build_release/routing_engine_benchmark ./{out}")
+    print(f"  run: taskset -c 3 ./build/routing_engine_benchmark ./{out}")
 
 
 if __name__ == "__main__":

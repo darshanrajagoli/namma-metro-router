@@ -291,7 +291,7 @@ void GTFSParser::load_stop_times(const std::string& filename) {
         r.pickup_type   = (fields.size() > 5 && !fields[5].empty()) ? static_cast<uint8_t>(std::stoi(fields[5])) : 0;
         r.drop_off_type = (fields.size() > 6 && !fields[6].empty()) ? static_cast<uint8_t>(std::stoi(fields[6])) : 0;
 
-        // H-new (Gemini audit): Do NOT filter pickup_type==1 here.
+        // Do NOT filter pickup_type==1 here.
         // Filtering before interpolation destroys the contiguous stop sequence
         // that interpolate_stop_times() needs to compute cumulative distances
         // and fill blank arrival times geometrically. If stop seq [A, B*, C]
@@ -554,7 +554,7 @@ void GTFSParser::print_stats() const {
 }
 
 // ── check_frequencies ────────────────────────────────────────────────────
-// Gemini audit: frequencies.txt is not parsed. If BMRCL uses frequency-based
+// frequencies.txt is not parsed. If a feed uses frequency-based
 // scheduling (exact_times=0 or exact_times=1 blocks), the graph will be
 // completely disconnected during those service windows — no edges at all.
 // This function detects the file and emits a FATAL warning so the developer

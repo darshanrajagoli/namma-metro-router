@@ -529,13 +529,14 @@ taskset -c 3 ./build/routing_engine_benchmark ./data_bart
 
 The correctness-critical routines of the engine, each covered by dedicated unit tests:
 
-| Component | File | Mathematical Concept |
-|-----------|------|---------------------|
-| `select_optimal_departure()` | `src/routing.cpp` | Bounded-Wait Lookahead + FIFO preservation |
-| `ParetoLabelSet::insert_and_dominate()` | `src/routing.cpp` | Binary search + dominance pruning |
-| Lazy deletion filter in Dijkstra loop | `src/routing.cpp` | Stale label suppression |
-| Transfer relaxation in Dijkstra loop | `src/routing.cpp` | Time-independent edges, trivially FIFO |
-| Transfer CSR construction | `src/graph_builder.cpp` | Separate adjacency, FK-validated |
+| Component | File | Concept | Pinned by |
+|-----------|------|---------|-----------|
+| `select_optimal_departure()` | `src/routing.cpp` | Bounded-Wait Lookahead. **Does not preserve FIFO in general** — see below | `test_fifo.cpp`, `test_fifo_violation.cpp` |
+| `ParetoLabelSet::insert_and_dominate()` | `src/routing.cpp` | Binary search + dominance pruning | `test_dominance.cpp` (11 cases) |
+| Lazy deletion filter in Dijkstra loop | `src/routing.cpp` | Stale label suppression, **strict bi-criteria** | `test_lazy_deletion.cpp` Test 6 |
+| Transfer relaxation in Dijkstra loop | `src/routing.cpp` | Time-independent edges, trivially FIFO | `test_transfers.cpp` |
+| Transfer CSR construction | `src/graph_builder.cpp` | Separate adjacency, FK-validated | `test_transfers.cpp` (12 cases) |
+| Engine vs brute-force oracle | `src/routing.cpp` | Independent correctness check | `test_pareto_oracle.cpp` |
 
 Run `ctest` from the build directory — all **85 tests** pass under AddressSanitizer +
 UndefinedBehaviorSanitizer.

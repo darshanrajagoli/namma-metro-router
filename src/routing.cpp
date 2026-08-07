@@ -92,7 +92,7 @@ namespace namma_metro
         // d/dt(penalty) >= -1 is necessary but NOT sufficient for FIFO here — see
         // routing.hpp §3 and tests/test_fifo_violation.cpp for the three mechanisms
         // that break it and the graph where it costs a reachable destination.
-        // See include/routing.hpp §3 and tests/test_fifo.cpp for the contract.
+        // tests/test_fifo.cpp covers the behaviour where the policy IS correct.
 
         const auto [edge_begin, edge_end] = graph.edges_of(u);
 
@@ -369,7 +369,7 @@ namespace namma_metro
             }
         }
 
-        // ── FM8 ADVERSARIAL AUDIT — predecessor chain and arena lifetime ──────
+        // ── Predecessor chain and arena lifetime — read before consuming results ──
         // predecessor field in Label stores current.node (the NODE INDEX of the
         // prior hop), NOT a Label* pointer and NOT an arena slot index.
         // Path reconstruction: follow pred chain C.pred=B_id → B.pred=A_id →

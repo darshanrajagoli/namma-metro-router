@@ -16,14 +16,17 @@
 
 /**
  * @file benchmark.hpp
- * @brief Cycle-accurate RDTSC benchmarking harness for sub-microsecond routing latency.
+ * @brief Cycle-accurate RDTSC benchmarking harness for microsecond-scale routing latency.
  *
  * ╔══════════════════════════════════════════════════════════════╗
  * ║  HOW HFT FIRMS MEASURE LATENCY — AND WHY THIS MATTERS       ║
  * ╠══════════════════════════════════════════════════════════════╣
- * ║  Raw wall-clock (std::chrono) has ~100ns resolution on      ║
- * ║  Linux due to vDSO overhead. For sub-50μs p99 targets,      ║
- * ║  RDTSC is the only viable measurement mechanism.            ║
+ * ║  Raw wall-clock (std::chrono) costs ~100 ns per call on      ║
+ * ║  Linux via the vDSO. Against this engine's 54-300 us         ║
+ * ║  queries that is ~0.2% — chrono would in fact be adequate.   ║
+ * ║  RDTSC is used because it resolves single expansions and     ║
+ * ║  makes the serialisation question explicit; it is more       ║
+ * ║  rigour than the workload strictly demands.                  ║
  * ║                                                              ║
  * ║  RDTSC reads the 64-bit Time Stamp Counter: a monotonically  ║
  * ║  incrementing counter driven by the invariant TSC frequency  ║
@@ -51,7 +54,10 @@
  *   scripts/stabilize_cpu.sh  — sets governor=performance, disables boost.
  *                               NOTE: written for Intel; its BD PROCHOT step
  *                               (MSR 0x1FC) does not apply on AMD. See README.
- *   taskset -c 3              — pin to isolated core 3 (NOT core 0 — core 0 handles OS interrupts)
+ *   taskset -c 3              — pin to core 3. NOT core 0, which handles OS
+ *                               interrupt delivery. Note this is affinity only:
+ *                               the core is not isolcpu-isolated, so other work
+ *                               can still be scheduled on it.
  *   arena.prefault()          — pre-fault all arena pages
  */
 

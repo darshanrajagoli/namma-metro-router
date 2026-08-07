@@ -286,7 +286,7 @@ def main():
     print(f"  stops  kept    : {len(out_stops)}   (dropped for bad coords: {dropped_no_coord})")
     print(f"  stop_times kept: {len(kept_st)}")
     print(f"  -> wrote clean feed to: {out}/")
-    print(f"  run: taskset -c 3 ./build_release/routing_engine_benchmark ./{out}")
+    print(f"  run: taskset -c 3 ./build/routing_engine_benchmark ./{out}")
 
 
 if __name__ == "__main__":
