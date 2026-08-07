@@ -164,18 +164,56 @@ Time-dependent edge weights must satisfy the **First-In-First-Out** constraint:
 t₁ + w(u, v, t₁) ≤ t₂ + w(u, v, t₂)   for all t₁ ≤ t₂
 ```
 
-This guarantees that Dijkstra's optimality subpath property holds. Synthetic crowd
-penalties violate FIFO when they drop precipitously after morning peak. The
-**Bounded-Wait Lookahead** policy resolves this by enforcing the derivative
-constraint `d/dt(cost) ≥ -1` on the time-varying term: cost cannot fall faster than
-one unit per second, so waiting can never beat departing by more than the wait itself.
+This guarantees that Dijkstra's optimality subpath property holds. The
+**Bounded-Wait Lookahead** addresses one way it can fail — a time-varying cost term
+that drops faster than the clock — by requiring `d/dt(cost) ≥ -1`, so waiting can
+never beat departing by more than the wait itself. In this build the binding term is
+`crowd_weight`, whose Gaussian model has max |d/dt| ≈ 0.15 (maximal at |t−peak| = σ,
+where it equals 900·e^(−1/2)/3600; it is zero *at* the peak). That is comfortably
+inside the bound, and it is checked at graph-build time under `NDEBUG`-off builds
+(`src/graph_builder.cpp`) and in `tests/test_fifo_invariant.cpp`.
 
-In this build the binding term is `crowd_weight`, whose Gaussian peak model has
-max |d/dt| ≈ 0.15 — comfortably inside the bound, and checked at graph-build time
-under `NDEBUG`-off builds (`src/graph_builder.cpp`) as well as in
-`tests/test_fifo_invariant.cpp`. The `penalty` field is a second time-varying term the
-same bound would govern, but it is currently always 0 (see **Known Limitations**), so
-it neither contributes to the objective nor exercises the constraint.
+> **⚠ That derivative bound is not sufficient, and the engine does not preserve FIFO
+> in general. This is measured, not theorised — see `tests/test_fifo_violation.cpp`,
+> which constructs each failure and asserts the current behaviour.**
+>
+> Three independent mechanisms break it:
+>
+> 1. **The composite ignores arrival time.** Under `CrowdExposure` with λ > 0,
+>    `select_optimal_departure` minimises `travel + λ·crowd + penalty` — an expression
+>    with no `departure_time` term. With per-link travel times that differ between
+>    departures, a later query can pick a faster train and arrive *earlier*.
+>    Worked case: X departs 100 riding 400s (crowd 5, composite 405, arrives 500);
+>    Y departs 110 riding 50s (crowd 400, composite 450, arrives 160). Querying at
+>    t=100 arrives at **500**; querying at t=105 arrives at **160**.
+> 2. **The `k_departures` budget truncates.** Only the first *k* candidates to a
+>    destination are examined, and that set slides with query time.
+> 3. **The `W_max` window truncates.** Same argument for `[t, t + W_max]`.
+>
+> Mechanisms 2 and 3 fire **even in the arrival-minimising regime** (λ = 0, or
+> `TransferCount`), where the composite *is* the arrival time — so switching selection
+> to minimise arrival, the obvious fix for mechanism 1, would not restore FIFO.
+>
+> **Why it does not bite on the feeds measured here.** `build_namma_metro_gtfs.py`
+> derives travel time from distance ÷ average speed, so τ is identical for every
+> departure on a link; arrival is then monotone in the chosen departure and the chosen
+> departure cannot move backwards, so FIFO holds. The BART configuration avoids
+> mechanism 1 separately by running under `TransferCount`.
+> `FIFOViolation.ConstantPerLinkTravelTime_ArrivalIsMonotone` is the control.
+>
+> **The consequence is real, not cosmetic.** FIFO underpins *consistency under
+> extension*: if label L₁ dominates L₂ at a node, extending both should preserve that.
+> `docs/write-up.tex` §2 previously claimed this holds trivially for non-negative edge
+> weights — but that argument assumes both labels are extended by the *same* edge, and
+> they are not, because the edge is chosen as a function of arrival time.
+> `FIFOViolation.DominatedPredecessorPruning_HidesAReachableDestination` exhibits a
+> graph where the dominated label at an intermediate node was the only one that could
+> catch the onward service, so **a genuinely reachable destination is reported
+> unreachable**.
+
+The `penalty` field is a second time-varying term the same bound would govern, but it
+is currently always 0 (see **Known Limitations**), so it neither contributes to the
+objective nor exercises the constraint.
 
 ### Pareto Dominance
 
@@ -349,7 +387,7 @@ namma-metro-router/
 │   ├── routing.cpp          # Dijkstra engine  
 │   ├── benchmark.cpp        # TSC calibration + percentile computation
 │   └── main_bench.cpp       # Benchmark harness entry point
-├── tests/                   # Google Test suite (9 files, 80 tests)
+├── tests/                   # Google Test suite (10 files, 85 tests)
 ├── tools/                   # Measurement harnesses — see "Measured Behaviour"
 │   ├── diag.cpp             # Frontier-size distribution + lambda sensitivity
 │   ├── ab.py                # Interleaved arena-vs-heap A/B
@@ -478,7 +516,7 @@ The correctness-critical routines of the engine, each covered by dedicated unit 
 | Transfer relaxation in Dijkstra loop | `src/routing.cpp` | Time-independent edges, trivially FIFO |
 | Transfer CSR construction | `src/graph_builder.cpp` | Separate adjacency, FK-validated |
 
-Run `ctest` from the build directory — all **80 tests** pass under AddressSanitizer +
+Run `ctest` from the build directory — all **85 tests** pass under AddressSanitizer +
 UndefinedBehaviorSanitizer.
 
 ---
@@ -613,6 +651,7 @@ each has a test or a runtime message pinning the current behaviour.
 | Limitation | Effect | Where it's pinned |
 |---|---|---|
 | **Bounded-wait horizon.** `select_optimal_departure` considers only departures within `W_max_seconds` of arrival (default 1800 s). If the next service to a neighbour is further out, that neighbour is reported unreachable rather than "reachable after a long wait". | On a dense feed (≤30 min headway) no effect. On a sparse or late-night feed, reachable stations can be missed. Widen the window via `LookaheadConfig::W_max_seconds`. | `tests/test_fifo.cpp` (`BoundedWait_*`) |
+| **FIFO is not preserved in general.** Three mechanisms break it: the crowd composite contains no `departure_time` term, and both the `k_departures` budget and the `W_max` window truncate a candidate set that slides with query time. The last two fire even when selection minimises arrival. | A later query can return an *earlier* arrival. Downstream, consistency under extension fails, so a Pareto-dominated label at an intermediate node can be the only one able to catch an onward service — **a reachable destination can be reported unreachable**. Does not fire on the measured feeds: Namma has constant per-link travel time by construction, BART runs under `TransferCount`. | `tests/test_fifo_violation.cpp` (5 cases, incl. the control and the end-to-end consequence) |
 | **One composite-optimal departure per link.** The engine expands the λ-minimizer among the next *k* departures rather than branching on every departure. | The returned frontier is the set of non-dominated trade-offs **across route choices** at a fixed λ, not the full per-boarding frontier. | `tests/test_pareto_oracle.cpp` (`MultiDeparture_*`) |
 | **Crowd is a function of time of day only.** `crowd_weight` comes from a Gaussian peak model, identical for every edge; it does not vary by station or segment, and `penalty` is always 0. | **Measured consequence:** the second objective is effectively inert — frontiers hold one label at 96–100% of nodes and λ is a binary switch. See [Measured Behaviour](#measured-behaviour) §1–2. Position-dependent crowd is the fix. | `tools/diag.cpp`, `tests/test_fifo_invariant.cpp` |
 | **Calendars and `frequencies.txt` are parsed but not enforced.** All trips are treated as active on every service day. | Correct for the single-service-pattern metro feeds targeted here; wrong for a feed with weekday/weekend variants. | Runtime `[GTFS INFO]` line on every load |

@@ -259,10 +259,25 @@ namespace namma_metro
      *       composite_cost(e) = e.travel_time + lambda * e.secondary_weight + e.penalty
      *     Return the edge e* minimizing composite_cost(e).
      *
-     *   Proof that this preserves FIFO:
-     *     The penalty derivative constraint d/dt(penalty) ≥ -1 ensures that
-     *     any waiting benefit is bounded by the waiting cost, preventing the
-     *     "later departure, earlier arrival" violation.
+     *   FIFO — READ THIS BEFORE RELYING ON IT:
+     *     The penalty derivative constraint d/dt(penalty) >= -1 bounds any waiting
+     *     benefit by the waiting cost. That is NECESSARY BUT NOT SUFFICIENT, and
+     *     this function does not preserve FIFO in general. Three mechanisms break
+     *     it, each pinned by a test in tests/test_fifo_violation.cpp:
+     *       (1) the composite below contains no departure_time term under
+     *           CrowdExposure with lambda > 0, so selection is blind to arrival;
+     *       (2) the k_departures budget truncates a candidate set that slides
+     *           with current_time;
+     *       (3) the W_max window truncates it likewise.
+     *     (2) and (3) fire even in the arrival-minimising regime, so making
+     *     selection arrival-minimising does not by itself restore FIFO.
+     *
+     *     It holds on the feeds measured here only because per-link travel time is
+     *     constant across departures (distance / average speed), which makes
+     *     arrival monotone in the chosen departure. See docs/write-up.tex §2,
+     *     Note "Correction — this argument does not go through", for why the
+     *     downstream consistency-under-extension argument fails and how that lets
+     *     dominance pruning hide a reachable destination.
      *
      * @param graph         The CSR graph (for edge iteration).
      * @param config        Lookahead configuration (k, W_max, lambda).

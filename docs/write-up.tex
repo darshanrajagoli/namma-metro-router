@@ -265,11 +265,61 @@
         \;\Rightarrow\;
         (t_1 + \Delta t \le t_2 + \Delta t \;\wedge\; c_1 + \Delta c \le c_2 + \Delta c)
     \]
-    for any $\Delta t, \Delta c \ge 0$. This holds trivially for non-negative
-    edge weights, which is guaranteed by the minimum travel\_time $\ge 1$\,s
-    constraint enforced in \texttt{graph\_builder.cpp}. Together, FIFO and
-    consistency under extension establish the correctness of the label-correcting
-    Pareto-Dijkstra for this routing engine.
+    for any $\Delta t, \Delta c \ge 0$.
+
+    \begin{note}[Correction --- this argument does not go through]
+    \label{note:extension-gap}
+    An earlier version of this document asserted that the implication above
+    ``holds trivially for non-negative edge weights.'' \textbf{That is wrong, and
+    the engine's own test suite now exhibits a counterexample}
+    (\texttt{tests/test\_fifo\_violation.cpp}).
+
+    The error is that $\Delta t$ is written as though it were a single quantity
+    applied to both labels. It is not. The successor edge is selected by
+    \texttt{select\_optimal\_departure}, which is a function of the arrival time,
+    so the two labels are extended by \emph{different} edges:
+    \[
+        \mathrm{ext}(L_1) = t_1 + \Delta t(t_1),
+        \qquad
+        \mathrm{ext}(L_2) = t_2 + \Delta t(t_2).
+    \]
+    Consistency under extension therefore requires exactly
+    $t_1 + \Delta t(t_1) \le t_2 + \Delta t(t_2)$ for $t_1 \le t_2$ --- which is
+    the FIFO condition itself, not a consequence of non-negativity. The argument
+    is circular as originally stated.
+
+    And FIFO does not hold here. \Cref{prop:lookahead-suboptimality} already noted
+    that the candidate set $\{e : t \le t_d(e) \le t + \wmax\}$, truncated to the
+    first $k$ departures, varies with $t$; the tests show three independent
+    mechanisms by which arrival fails to be monotone in query time, two of which
+    survive even when selection minimises arrival directly.
+
+    \textbf{Consequence.} Since consistency under extension fails, a label pruned
+    at node $u$ for being Pareto-dominated may have been the only one whose
+    extension reaches some $v$. The test
+    \texttt{DominatedPredecessorPruning\_HidesAReachableDestination} constructs
+    precisely this: two labels reach $u$ at $t=100$ and $t=105$ with equal
+    secondary cost, so the later is pruned; the sole onward departure lies outside
+    $[100, 100+\wmax]$ but inside $[105, 105+\wmax]$; and the destination is
+    reported unreachable although a journey satisfying every rule of the model
+    exists. The frontier the engine returns is therefore not merely a restriction
+    of the true frontier (as the per-link scalarisation already makes it), but can
+    omit reachable nodes entirely.
+
+    \textbf{What would restore it.} Making selection arrival-minimising removes
+    mechanism~(1) but not the truncation mechanisms; removing the truncation
+    bounds ($k \to \infty$, $\wmax \to \infty$) removes (2) and (3) at the cost of
+    unbounded per-link work. A sound and bounded alternative is to branch on all
+    non-dominated departures in the window rather than collapsing the link to one,
+    which makes the extension operator set-valued and monotone. That is the
+    complete multi-label formulation this engine deliberately does not implement
+    (\Cref{prop:label-setting-fails} and the scope note in \texttt{routing.hpp}).
+    \end{note}
+
+    Subject to \Cref{note:extension-gap}, FIFO together with consistency under
+    extension is what \emph{would} establish correctness of the label-correcting
+    Pareto-Dijkstra; on the feeds measured here both hold, because per-link travel
+    time is constant by construction, but neither holds in general.
 \end{proof}
 
 % ══════════════════════════════════════════════════════════════════════════

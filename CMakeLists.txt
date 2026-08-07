@@ -147,6 +147,7 @@ add_executable(namma_metro_tests
   tests/test_arena.cpp
   tests/test_pareto_oracle.cpp
   tests/test_fifo_invariant.cpp
+  tests/test_fifo_violation.cpp
   tests/test_transfers.cpp
 )
 target_link_libraries(namma_metro_tests

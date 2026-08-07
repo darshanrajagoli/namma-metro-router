@@ -17,7 +17,10 @@
  *   The actual FIFO property of select_optimal_departure(). For that, see
  *   test_fifo.cpp Test 7 (FIFOMonotonicity_ArrivalNonDecreasing), which queries
  *   the engine at increasing current_times and verifies arrival times are non-
- *   decreasing. That is the operationally correct FIFO check.
+ *   decreasing on a monotone crowd profile — and, more importantly,
+ *   test_fifo_violation.cpp, which shows that FIFO does NOT hold in general and
+ *   pins the three mechanisms that break it. The derivative bound checked here is
+ *   necessary but not sufficient.
  *
  * MATHEMATICAL CONTEXT:
  *   The FIFO lemma (write-up.tex §2) requires: for all t1 <= t2,

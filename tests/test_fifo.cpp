@@ -22,6 +22,15 @@
  *
  *   Tests 9-11 additionally pin the reachability consequence of the W_max
  *   window — see the Known Limitations table in README.md.
+ *
+ * SCOPE — WHAT THIS FILE DOES NOT SHOW:
+ *   These tests exercise the lookahead where it behaves correctly. They do NOT
+ *   establish that FIFO holds in general, and it does not: see
+ *   tests/test_fifo_violation.cpp, which constructs three independent mechanisms
+ *   that break it and the end-to-end case where dominance pruning consequently
+ *   hides a reachable destination. Test 7 below
+ *   (FIFOMonotonicity_ArrivalNonDecreasing) passes because its fixture uses a
+ *   monotone crowd profile; it is not a general monotonicity proof.
  */
 
 using namespace namma_metro;

@@ -88,8 +88,10 @@ namespace namma_metro
     {
         // Bounded-Wait Lookahead. Among the next k departures of service (u -> v)
         // that leave within [current_time, current_time + W_max_seconds], return
-        // the one minimising the composite objective. This preserves FIFO under
-        // the penalty derivative bound d/dt(penalty) >= -1.
+        // the one minimising the composite objective. The penalty derivative bound
+        // d/dt(penalty) >= -1 is necessary but NOT sufficient for FIFO here — see
+        // routing.hpp §3 and tests/test_fifo_violation.cpp for the three mechanisms
+        // that break it and the graph where it costs a reachable destination.
         // See include/routing.hpp §3 and tests/test_fifo.cpp for the contract.
 
         const auto [edge_begin, edge_end] = graph.edges_of(u);
