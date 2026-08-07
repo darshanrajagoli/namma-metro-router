@@ -33,7 +33,7 @@
  *
  * BENCHMARK CONFIGURATION STRING (paste into README.md):
  *   "Benchmarks collected on isolated core 3 with taskset, frequency scaling
- *    disabled, Turbo Boost off, arena pre-faulted. Serialization via CPUID+RDTSC/RDTSCP+CPUID."
+ *    disabled, Precision Boost off, arena pre-faulted. Serialization via CPUID+RDTSC/RDTSCP+CPUID."
  */
 
 int main(int argc, char* argv[]) {
@@ -64,10 +64,11 @@ int main(int argc, char* argv[]) {
         }
         if (!has_rdtscp) {
             std::fprintf(stderr,
-                "[BENCH WARN] RDTSCP not supported on this CPU/VM. "
-                "Falling back to clock_gettime(CLOCK_MONOTONIC_RAW) for timing. "
-                "Results may have ~100ns resolution — insufficient for sub-50us targets.\n"
-                "Re-run on native hardware with a modern Intel/AMD CPU.\n");
+                "[BENCH WARN] RDTSCP not supported on this CPU/VM.\n"
+                "             There is NO software fallback: the harness issues RDTSCP\n"
+                "             unconditionally (include/benchmark.hpp), so the numbers\n"
+                "             below are NOT trustworthy on this machine.\n"
+                "             Re-run on x86-64 hardware with a modern Intel/AMD CPU.\n");
         } else {
             std::printf("[OK] RDTSCP supported — cycle-accurate timing available.\n");
         }
@@ -97,7 +98,7 @@ int main(int argc, char* argv[]) {
                 "             All p50/p95/p99 values may be wrong (wrong ticks/ns).\n"
                 "             VM exits between RDTSC/RDTSCP inflate p99 by 10-100x.\n"
                 "             To diagnose: check max_ns/p99_ns ratio in output below.\n"
-                "             For valid numbers: run on native hardware, Turbo off.\n");
+                "             For valid numbers: run on native hardware, boost off.\n");
         } else {
             std::printf("[OK] InvariantTSC confirmed — TSC frequency is stable.\n");
         }
@@ -310,7 +311,7 @@ int main(int argc, char* argv[]) {
             "[BENCH WARN] max_ns (%.0f ns) / p99_ns (%.0f ns) = %.1fx > 10.\n"
             "             A VM exit or OS preemption injected outlier latency.\n"
             "             Reported p99 = %.0f ns does NOT represent routing cost.\n"
-            "             Re-run on native hardware with Turbo Boost off.\n",
+            "             Re-run on native hardware with Precision Boost off.\n",
             stats.max_ns, stats.p99_ns,
             stats.max_ns / stats.p99_ns,
             stats.p99_ns);
@@ -323,10 +324,10 @@ int main(int argc, char* argv[]) {
     std::printf("| p99  | %.0f ns |\n", stats.p99_ns);
     std::printf("\nHardware config string:\n");
     std::printf("Benchmarks collected on isolated core 3 with taskset, "
-                "frequency scaling disabled, Turbo Boost off, arena pre-faulted. "
+                "frequency scaling disabled, Precision Boost off, arena pre-faulted. "
                 "Serialization via CPUID+RDTSC/RDTSCP+CPUID. "
                 "Note: if benchmarked under WSL2, MSR frequency locking unavailable — "
-                "measurements may include Turbo Boost variance; "
+                "measurements may include Precision Boost variance; "
                 "check max_ns/p99_ns ratio in output.\n\n");
 
     return 0;

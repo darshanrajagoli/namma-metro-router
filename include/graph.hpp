@@ -13,7 +13,8 @@
  * ARCHITECTURAL INVARIANT:
  *   The graph MUST be stored in CSR format. Never use std::vector<std::vector<Edge>>.
  *   Nested dynamic arrays cause pointer-chasing that destroys L1 cache coherency.
- *   On a Dell G15 with a 12th-gen Intel CPU, L1d = 48 KB per core, L2 = 1.25 MB.
+ *   On the Dell G15 5535 used here (AMD Ryzen 5 7640HS, Zen 4): L1d = 32 KB per
+ *   core, L2 = 1 MB per core, L3 = 16 MB shared across 6 cores.
  *   With CSR, all outgoing edges of a node are packed contiguously:
  *     edges of node u = edge_data[ offset[u] .. offset[u+1] )
  *   This guarantees sequential prefetching during Dijkstra relaxation.
@@ -22,8 +23,15 @@
  *   offset[]    : (num_nodes + 1) uint32_t values  → 4*(N+1) bytes
  *   edge_data[] : num_edges * sizeof(Edge)          → 20*E bytes
  *
- * Cache math (for Namma Metro Purple+Green lines, ~500 edges):
- *   500 edges × 20 bytes = 10,000 bytes = ~10 KB → fits entirely in L1d.
+ * Cache math (measured Namma Metro feed — Purple, Green and Yellow lines):
+ *   The CSR stores one edge per TIMETABLED DEPARTURE, not one per track segment, so
+ *   |E| is driven by service frequency rather than station count. 82 stations at a
+ *   5-minute headway over an 05:00-23:00 service day yield 35,588 edges:
+ *     35,588 edges × 20 bytes = 711,760 bytes ≈ 695 KB.
+ *   That does NOT fit the 32 KB L1d, but it is resident in the 1 MB L2 of a Zen 4
+ *   core, and each node's range is traversed sequentially so the
+ *   hardware prefetcher stays engaged. Only the working set of a single query — the
+ *   visited nodes' frontier vectors and the arena slots in use — stays L1-resident.
  */
 
 namespace namma_metro {

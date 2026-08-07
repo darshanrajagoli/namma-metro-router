@@ -21,6 +21,10 @@
 #   Dell SMM interface accepts WMI/ACPI calls to control thermal profiles.
 #   The specific SMM function ID for G-Mode toggle varies by BIOS version.
 #   Common IDs for Dell G15 5520/5530 with BIOS >= 1.8.0: 0x1A or 0x19.
+#   UNVERIFIED on the Dell G15 5535 (AMD Ryzen 5 7640HS) this project is
+#   benchmarked on — those IDs come from the Intel-generation G15 chassis and
+#   the AMD variant may use a different SMM function. Check before relying on
+#   this; a wrong ID is a no-op at best.
 #   The acpi_call module allows raw ACPI method invocation from userspace.
 #
 # WARNING:

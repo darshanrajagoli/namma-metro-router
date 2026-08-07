@@ -23,7 +23,11 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 # ─────────────────────────────────────────────
 set(COMMON_FLAGS "-Wall -Wextra -Wpedantic -Wshadow -Wno-unused-parameter")
 
-# Release: maximum vectorization + native ISA (AVX2 on Dell G15 i7-12700H)
+# Release: maximum vectorization + native ISA. On the Dell G15 5535 used here
+# (AMD Ryzen 5 7640HS, Zen 4) -march=native resolves to -march=znver4, which
+# enables AVX-512 as well as AVX2. Nothing in the engine depends on either: the
+# hot loop is branchy pointer-chasing through a heap, so the win from -march is
+# instruction selection rather than SIMD.
 # -ffast-math is deliberately NOT used: it enables -funsafe-math-optimizations,
 # which may reassociate
 # the composite cost formula (wait + travel + lambda*crowd + penalty), changing
@@ -31,7 +35,21 @@ set(COMMON_FLAGS "-Wall -Wextra -Wpedantic -Wshadow -Wno-unused-parameter")
 # verify Debug builds (no -ffast-math) — the Release build must match.
 # -fno-math-errno + -ffinite-math-only retain vectorization benefits without
 # breaking float associativity or the priority queue's strict weak ordering.
-set(RELEASE_FLAGS "${COMMON_FLAGS} -O3 -march=native -funroll-loops -fno-math-errno -ffinite-math-only -DNDEBUG")
+#
+# -march: default to `native`, but DO NOT override one the caller already supplied
+# via -DCMAKE_CXX_FLAGS. These flags are APPENDED to CMAKE_CXX_FLAGS below, and the
+# last -march on the command line wins — so an unconditional -march=native silently
+# defeated the portability guard CI sets (-march=x86-64-v3, chosen because the
+# runner's exact microarchitecture is unknown and `native` can emit instructions the
+# host does not support).
+if(CMAKE_CXX_FLAGS MATCHES "-march=")
+  set(ARCH_FLAG "")
+  message(STATUS "-march already supplied by caller; not adding -march=native")
+else()
+  set(ARCH_FLAG "-march=native")
+endif()
+
+set(RELEASE_FLAGS "${COMMON_FLAGS} -O3 ${ARCH_FLAG} -funroll-loops -fno-math-errno -ffinite-math-only -DNDEBUG")
 
 # Debug: sanitizers for allocator development
 set(DEBUG_FLAGS "${COMMON_FLAGS} -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer")

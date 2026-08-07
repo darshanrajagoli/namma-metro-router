@@ -28,7 +28,7 @@
  * ║  RDTSC reads the 64-bit Time Stamp Counter: a monotonically  ║
  * ║  incrementing counter driven by the invariant TSC frequency  ║
  * ║  (fixed at the nominal CPU frequency, independent of P-states║
- * ║  when Turbo is disabled). Resolution: ~1 clock cycle.       ║
+ * ║  when boost is disabled). Resolution: ~1 clock cycle.       ║
  * ║                                                              ║
  * ║  Out-of-order execution hazard:                             ║
  * ║  CPUs reorder instructions speculatively. Without barriers,  ║
@@ -48,7 +48,9 @@
  * ╚══════════════════════════════════════════════════════════════╝
  *
  * PRE-REQUISITES (run before any benchmark):
- *   scripts/stabilize_cpu.sh  — sets governor=performance, disables Turbo Boost
+ *   scripts/stabilize_cpu.sh  — sets governor=performance, disables boost.
+ *                               NOTE: written for Intel; its BD PROCHOT step
+ *                               (MSR 0x1FC) does not apply on AMD. See README.
  *   taskset -c 3              — pin to isolated core 3 (NOT core 0 — core 0 handles OS interrupts)
  *   arena.prefault()          — pre-fault all arena pages
  */
@@ -112,9 +114,10 @@ namespace namma_metro::bench {
 /**
  * @brief Measure the TSC tick frequency using a short busy-wait calibration.
  *
- * Call once at program startup. With Turbo Boost disabled and governor set
+ * Call once at program startup. With Precision Boost disabled and governor set
  * to `performance`, the TSC frequency equals the rated base clock of the CPU.
- * On Dell G15 i7-12700H: ~2.3 GHz (P-core) with Turbo disabled.
+ * On the Dell G15 5535 (AMD Ryzen 5 7640HS, Zen 4) the base clock is ~4.3 GHz,
+ * and TSC calibration on this machine reports ~4.29 GHz — consistent with that.
  *
  * @param  calibration_ms  Busy-wait duration for calibration (default 100ms).
  * @return TSC ticks per nanosecond (as a double for fractional precision).
