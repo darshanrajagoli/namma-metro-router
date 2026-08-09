@@ -99,6 +99,51 @@ jobs:
           print("normalize_gtfs.py --transfers: OK")
           EOF
 
+      # ── 4c. Smoke-test prefilter_gtfs.py ─────────────────────────────────
+      # The multi-feed study's mode filter and service-day selection live in
+      # Python and ctest cannot reach them, exactly like the normaliser above.
+      # Both have already been wrong in ways that produced plausible output:
+      # a basic-only route_type filter reported a national rail feed as having
+      # no rail service at all, and no service-day filter at all left three
+      # copies of every train in the graph. This pins both.
+      - name: Test prefilter_gtfs.py
+        run: |
+          mkdir -p raw_pre
+          # NOTE the padding after each comma in the header — Metra publishes
+          # routes.txt exactly like this, and an untrimmed header lookup finds
+          # no route_type, keeps nothing, and reports "no rail routes".
+          printf 'route_id, route_type, route_short_name\n' > raw_pre/routes.txt
+          printf 'RAIL,100,IC\nBUS,3,B1\nTROLLEY,11,T1\n' >> raw_pre/routes.txt
+          printf 'trip_id,route_id,service_id\nTW,RAIL,WEEKDAY\nTS,RAIL,SUNDAY\nTB,BUS,WEEKDAY\n' > raw_pre/trips.txt
+          printf 'service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n' > raw_pre/calendar.txt
+          printf 'WEEKDAY,1,1,1,1,1,0,0,20260101,20261231\nSUNDAY,0,0,0,0,0,0,1,20260101,20261231\n' >> raw_pre/calendar.txt
+          printf 'stop_id,stop_name,stop_lat,stop_lon\nA,Alpha,12.97,77.59\nB,Beta,12.98,77.60\n' > raw_pre/stops.txt
+          printf 'trip_id,arrival_time,departure_time,stop_id,stop_sequence\n' > raw_pre/stop_times.txt
+          printf 'TW,08:00:00,08:00:00,A,0\nTW,08:10:00,08:10:00,B,1\n' >> raw_pre/stop_times.txt
+          printf 'TS,09:00:00,09:00:00,A,0\nTS,09:10:00,09:10:00,B,1\n' >> raw_pre/stop_times.txt
+          printf 'TB,10:00:00,10:00:00,A,0\nTB,10:10:00,10:10:00,B,1\n' >> raw_pre/stop_times.txt
+
+          python3 scripts/prefilter_gtfs.py raw_pre rail_pre
+          echo "--- kept trips ---"; cat rail_pre/trips.txt
+
+          python3 - <<'EOF'
+          import csv, sys
+          routes = list(csv.DictReader(open("rail_pre/routes.txt")))
+          kept = {r["route_id"] for r in routes}
+          # 100 is extended "Railway Service"; 3 is bus and 11 is TROLLEYBUS,
+          # which is a bus whatever the older normaliser's comment said.
+          if kept != {"RAIL"}:
+              sys.exit(f"FATAL: mode filter kept {kept}, expected {{'RAIL'}}")
+          trips = {t["trip_id"] for t in csv.DictReader(open("rail_pre/trips.txt"))}
+          if trips != {"TW"}:
+              sys.exit(f"FATAL: service-day filter kept {trips}, expected {{'TW'}} "
+                       "(the Sunday variant and the bus trip must both be gone)")
+          st = list(csv.reader(open("rail_pre/stop_times.txt")))
+          if len(st) != 3:  # header + the two rows of TW
+              sys.exit(f"FATAL: stop_times kept {len(st) - 1} rows, expected 2")
+          print("prefilter_gtfs.py: OK")
+          EOF
+
       # ── 5. Cache CMake build artifacts ───────────────────────────────────
       - name: Cache CMake build
         uses: actions/cache@v4

@@ -74,6 +74,10 @@ add_library(namma_metro_core STATIC
   src/graph_builder.cpp
   src/routing.cpp
   src/benchmark.cpp   # calibrate_tsc_ns + compute_percentiles definitions
+  src/raptor.cpp      # RAPTOR: speed baseline, exactness oracle, exact time-vs-trips frontier
+  src/topology.cpp    # structural metrics of a network, for the multi-feed study
+  src/crowd_model.cpp # station-load-scaled crowd weights from real ridership
+  src/accessibility.cpp # reachability at each change budget, and the SVG renderer
 )
 target_include_directories(namma_metro_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
@@ -119,6 +123,31 @@ target_link_libraries(routing_engine_diag PRIVATE namma_metro_core)
 add_executable(routing_engine_fifo_probe tools/fifo_probe.cpp)
 target_link_libraries(routing_engine_fifo_probe PRIVATE namma_metro_core)
 
+# tools/study — the multi-feed empirical study, one feed in, one CSV row out.
+# Measures the exact (arrival, trips) frontier with RAPTOR, the frontier the
+# shipped engine actually finds, the arrival gap the bounded-wait lookahead
+# costs, the network's structural metrics, and an interleaved head-to-head
+# timing. scripts/run_study.py drives it across the whole feed manifest.
+add_executable(routing_engine_study tools/study.cpp)
+target_link_libraries(routing_engine_study PRIVATE namma_metro_core)
+
+# tools/raptor_bench — the focused head-to-head: same feed, same query set, same
+# timing harness, interleaved. This is the answer to the README's long-standing
+# concession that "RAPTOR would very likely be faster for this objective".
+add_executable(routing_engine_raptor_bench tools/raptor_bench.cpp)
+target_link_libraries(routing_engine_raptor_bench PRIVATE namma_metro_core)
+
+# tools/isochrone — the accessibility surface. Turns the engine's output from a
+# latency table into a map: what is reachable from here, by when, with how many
+# changes, and what the gap between those costs.
+add_executable(routing_engine_isochrone tools/isochrone.cpp)
+target_link_libraries(routing_engine_isochrone PRIVATE namma_metro_core)
+
+# tools/crowd_study — the original time-only crowd model against a crowd field
+# built from measured station-hourly ridership, on the same feed in one process.
+add_executable(routing_engine_crowd_study tools/crowd_study.cpp)
+target_link_libraries(routing_engine_crowd_study PRIVATE namma_metro_core)
+
 option(BUILD_BASELINE "Build the heap-allocation A/B baseline binary" OFF)
 if(BUILD_BASELINE)
   add_executable(routing_engine_baseline
@@ -161,6 +190,10 @@ add_executable(namma_metro_tests
   tests/test_fifo_invariant.cpp
   tests/test_fifo_violation.cpp
   tests/test_transfers.cpp
+  tests/test_raptor.cpp
+  tests/test_topology.cpp
+  tests/test_crowd_model.cpp
+  tests/test_accessibility.cpp
 )
 target_link_libraries(namma_metro_tests
   PRIVATE

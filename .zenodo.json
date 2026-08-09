@@ -1,0 +1,26 @@
+{
+  "title": "namma-metro-router: a cache-conscious bi-criteria transit routing engine and a multi-feed study of when multi-objective routing is load-bearing",
+  "upload_type": "software",
+  "license": "MIT",
+  "description": "<p>A time-dependent, multi-label-correcting bi-criteria transit routing engine in C++17 &mdash; compressed-sparse-row graph, arena-allocated labels, a separate time-independent transfer adjacency, and a selectable second objective &mdash; together with a from-scratch RAPTOR implementation that serves both as a speed baseline and as an exactness oracle.</p><p>The research artifact is the study built on top of them: across published GTFS feeds worldwide, what fraction of origin&ndash;destination pairs actually admits a genuine time-versus-changes trade-off, and which structural property of a network predicts it? The trade-off rate is measured exactly, with RAPTOR, so it is a property of the network rather than of any search heuristic; the shipped engine's own frontier and the cost of its bounded-wait lookahead are reported alongside it.</p><p>Ships with a reproducible pipeline that fetches, checksum-pins and normalises every feed, a Docker image, and a single command that regenerates every published figure. Feed checksums are recorded because transit agencies republish feeds continuously at the same URL with no version; results either side of a moved pin are not comparable, and the artifact says so rather than hiding it.</p>",
+  "keywords": [
+    "transit routing",
+    "algorithm engineering",
+    "multi-objective optimisation",
+    "Pareto frontier",
+    "RAPTOR",
+    "GTFS",
+    "public transport",
+    "accessibility",
+    "reproducibility",
+    "C++"
+  ],
+  "creators": [
+    {
+      "name": "Rajagoli, Darshan",
+      "affiliation": "BITS Pilani, K. K. Birla Goa Campus"
+    }
+  ],
+  "access_right": "open",
+  "notes": "Reproduce with `docker build -t namma-metro-router . && docker run --rm -v \"$PWD/results:/work/results\" namma-metro-router`. The structural and frequency results are deterministic given the same feeds; the latency results depend on the host CPU and its power state and are not expected to reproduce numerically."
+}

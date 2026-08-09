@@ -2,6 +2,12 @@
 *.sh text eol=lf
 scripts/*.sh text eol=lf
 
+# Same reason, different reader: this repository is cloned with
+# core.autocrlf=true, which would hand Docker a Dockerfile whose RUN
+# continuations end in CRLF. The backslash then continues nothing and the image
+# fails to build with an error that points nowhere near the cause.
+Dockerfile text eol=lf
+
 # Normalize source to LF in the repository.
 *.cpp text
 *.hpp text

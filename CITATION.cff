@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+title: >-
+  namma-metro-router: a cache-conscious bi-criteria transit routing engine and a
+  multi-feed study of when multi-objective routing is load-bearing
+message: >-
+  If you use this software or its measurements, please cite it. The
+  contribution is the experimental design and the findings; the implementation
+  is a means to them.
+type: software
+authors:
+  - given-names: Darshan
+    family-names: Rajagoli
+    affiliation: BITS Pilani, K. K. Birla Goa Campus
+repository-code: 'https://github.com/darshanrajagoli/namma-metro-router'
+abstract: >-
+  A time-dependent, multi-label-correcting bi-criteria transit routing engine in
+  C++17, with a compressed-sparse-row graph, arena-allocated labels and a
+  separate transfer adjacency; a from-scratch RAPTOR implementation used both as
+  a speed baseline and as an exactness oracle; and an empirical study across
+  published GTFS feeds worldwide asking when a genuine time-versus-changes
+  trade-off exists at all, and which structural property of a network predicts
+  it. Includes a reproducible pipeline that fetches, pins and normalises every
+  feed, and the measurement tooling used to falsify the project's own claims.
+keywords:
+  - transit routing
+  - algorithm engineering
+  - multi-objective optimisation
+  - Pareto frontier
+  - RAPTOR
+  - GTFS
+  - public transport
+  - accessibility
+  - reproducibility
+license: MIT

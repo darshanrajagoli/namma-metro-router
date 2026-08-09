@@ -1,0 +1,383 @@
+{
+  "feeds": {
+    "at-auckland": {
+      "bytes": 30108750,
+      "fetched_at": "2026-08-08T19:16:20+00:00",
+      "http_etag": "0x8DEF3D8BF06966D",
+      "http_last_modified": "Thu, 06 Aug 2026 16:35:37 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260731",
+      "sha256": "f805ef41df0bccbdbe0f61099cd439a2134d77077beb544e99de27b486a35cb1",
+      "url": "https://gtfs.at.govt.nz/gtfs.zip"
+    },
+    "bart": {
+      "bytes": 892312,
+      "fetched_at": "2026-08-08T18:52:10+00:00",
+      "http_etag": "",
+      "http_last_modified": "",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260810",
+      "sha256": "affdc4d70cac01f71e54f049c754ba36824a885edcdef2ef8b024820c9e93080",
+      "url": "https://www.bart.gov/dev/schedules/google_transit.zip"
+    },
+    "calgary": {
+      "bytes": 8190980,
+      "fetched_at": "2026-08-08T19:01:55+00:00",
+      "http_etag": "W/\"11912d81-2f12-4b8c-a03d-77878151282d--gzip\"",
+      "http_last_modified": "",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260806",
+      "sha256": "5eb06ecd96bbfd59e6d9cd98735875b5e4d039275df3cac723bdeaa5bf9202da",
+      "url": "https://data.calgary.ca/download/npk7-z3bj/application%2Fx-zip-compressed"
+    },
+    "cta-chicago": {
+      "bytes": 99567748,
+      "fetched_at": "2026-08-08T18:59:00+00:00",
+      "http_etag": "\"0fbd7a2fd25dd1:0\"",
+      "http_last_modified": "Thu, 06 Aug 2026 23:45:18 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260805",
+      "sha256": "31300c36442ef36ccd06def27a6c7d07582d4cbc688cae984cb86f8ef3218bed",
+      "url": "https://www.transitchicago.com/downloads/sch_data/google_transit.zip"
+    },
+    "dart-dallas": {
+      "bytes": 8620679,
+      "fetched_at": "2026-08-08T19:01:28+00:00",
+      "http_etag": "",
+      "http_last_modified": "",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260724",
+      "sha256": "f123dd5ef3f3fd27d501338ea4b39f6561222220a60407a6645a6dcc9b1b0c31",
+      "url": "https://www.dart.org/transitdata/latest/google_transit.zip"
+    },
+    "dtpm-santiago": {
+      "bytes": 6008455,
+      "fetched_at": "2026-08-08T19:16:16+00:00",
+      "http_etag": "\"5bae87-5aae10e8c6a00\"",
+      "http_last_modified": "Mon, 20 Jul 2020 15:21:12 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20200625",
+      "sha256": "10d1e5b8f84c4866f2f2cf08e73cc5e6be7364f95f12083967deb8344c036184",
+      "url": "https://www.dtpm.cl/descargas/gtfs/GTFS.zip"
+    },
+    "entur-norway": {
+      "bytes": 620097471,
+      "fetched_at": "2026-08-08T19:11:06+00:00",
+      "http_etag": "\"e9f5c4fe16e7050b2adf11ea2899b896\"",
+      "http_last_modified": "Sat, 08 Aug 2026 18:10:10 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20261002",
+      "sha256": "fa68d45d9d88d92b9e2f20ff41ddc8eac36e417865b902f3f17c2ac1b4d7915a",
+      "url": "https://storage.googleapis.com/marduk-production/outbound/gtfs/rb_norway-aggregated-gtfs.zip"
+    },
+    "fgc-barcelona": {
+      "bytes": 2082721,
+      "fetched_at": "2026-08-08T19:14:49+00:00",
+      "http_etag": "\"6a7431fd-1fc7a1\"",
+      "http_last_modified": "Thu, 06 Aug 2026 07:04:29 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260904",
+      "sha256": "d891264193e5b286b61b734301a4ac5dca44fa7b6e23e6fae7a942ec31ad4191",
+      "url": "https://www.fgc.cat/google/google_transit.zip"
+    },
+    "gtfs-de-germany": {
+      "bytes": 278364397,
+      "fetched_at": "2026-08-08T19:03:38+00:00",
+      "http_etag": "\"109780ed-6588150bff9d0\"",
+      "http_last_modified": "Sat, 08 Aug 2026 04:11:29 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260814",
+      "sha256": "2fcf91ca349a22568bb8486a798d1040eab53e2e8877b715271081bdbd1f8dd6",
+      "url": "https://download.gtfs.de/germany/free/latest.zip"
+    },
+    "hsl-helsinki": {
+      "bytes": 84457050,
+      "fetched_at": "2026-08-08T19:08:55+00:00",
+      "http_etag": "0x8DEF50A4F37FF15",
+      "http_last_modified": "Sat, 08 Aug 2026 05:02:56 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260814",
+      "sha256": "bbe0b5025790598182ae6db1d498c0cc6a5c1101c03cd6e174564a37b2d8f42c",
+      "url": "https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip"
+    },
+    "idfm-paris": {
+      "bytes": 169835266,
+      "fetched_at": "2026-08-08T19:02:13+00:00",
+      "http_etag": "\"6a773bfb-a1f7b02\"",
+      "http_last_modified": "Sat, 08 Aug 2026 14:23:55 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260904",
+      "sha256": "37f4bddb69e6af257ed3f4f9e14c4f0f44ec8d26c9c380917b9884d435c11bb5",
+      "url": "https://eu.ftp.opendatasoft.com/stif/GTFS/IDFM-gtfs.zip"
+    },
+    "israel-mot": {
+      "bytes": 148694435,
+      "fetched_at": "2026-08-08T19:15:39+00:00",
+      "http_etag": "\"2ccd6df88a26dd1:0\"",
+      "http_last_modified": "Fri, 07 Aug 2026 16:37:00 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260810",
+      "sha256": "578c87dafbe416a6bfb828260d0e32ea7f0661e05b99786fd06e14ceb51c0be9",
+      "url": "https://gtfs.mot.gov.il/gtfsfiles/israel-public-transportation.zip"
+    },
+    "lametro-rail": {
+      "bytes": 1269616,
+      "fetched_at": "2026-08-08T18:59:30+00:00",
+      "http_etag": "\"7d917ec27ea5fe767318455d04e09bdd\"",
+      "http_last_modified": "",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260810",
+      "sha256": "88f1aa1c13fde65d46d528c7a55a0b2d240199bc2bb13d8d8ca1c60bd1a8c05e",
+      "url": "https://gitlab.com/LACMTA/gtfs_rail/-/raw/master/gtfs_rail.zip"
+    },
+    "marta-atlanta": {
+      "bytes": 20909973,
+      "fetched_at": "2026-08-08T19:17:25+00:00",
+      "http_etag": "",
+      "http_last_modified": "Wed, 24 Jun 2026 16:40:00 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260619",
+      "sha256": "9f6554cafaa7903fe39ec60aaed448a0d1574c3d8c67fcc3917c40cd7afb6fce",
+      "url": "https://www.itsmarta.com/google_transit_feed/google_transit.zip"
+    },
+    "mbta-boston": {
+      "bytes": 18547973,
+      "fetched_at": "2026-08-08T18:55:43+00:00",
+      "http_etag": "\"740bb4df7a1772732f2a25e2bd1659cf-3\"",
+      "http_last_modified": "Fri, 07 Aug 2026 16:06:08 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260821",
+      "sha256": "c19df1f38535898d3d2e2073f1489fe5d318fe98ab7ae6492a9a2643e5001620",
+      "url": "https://cdn.mbta.com/MBTA_GTFS.zip"
+    },
+    "metra-chicago": {
+      "bytes": 742370,
+      "fetched_at": "2026-08-08T18:59:14+00:00",
+      "http_etag": "\"1c4704192062a7d56f1fb9fb9b0abbde\"",
+      "http_last_modified": "Fri, 17 Jul 2026 07:20:04 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20250101",
+      "sha256": "df27caa3ecc3a7ded914b2fa6cb1f34fb09291d98afe3a3644801f6c2b494912",
+      "url": "https://schedules.metrarail.com/gtfs/schedule.zip"
+    },
+    "miami-dade": {
+      "bytes": 8419295,
+      "fetched_at": "2026-08-08T19:01:31+00:00",
+      "http_etag": "\"80443ab02821dd1:0\"",
+      "http_last_modified": "Fri, 31 Jul 2026 20:10:53 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260803",
+      "sha256": "785460181e910e47af9172ccb9da0b10aa61ba9d55539fd6b69d0ad181758ef5",
+      "url": "https://www.miamidade.gov/transit/googletransit/current/google_transit.zip"
+    },
+    "mta-lirr": {
+      "bytes": 1847463,
+      "fetched_at": "2026-08-08T18:56:07+00:00",
+      "http_etag": "\"965a3bf15b47ce4f214c38624c011574\"",
+      "http_last_modified": "Fri, 31 Jul 2026 12:33:57 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260818",
+      "sha256": "c87e80be01747f07a25b32c8ed53da1517d91a10deebc85244017e2377c05af4",
+      "url": "http://web.mta.info/developers/data/lirr/google_transit.zip"
+    },
+    "mta-metro-north": {
+      "bytes": 3693104,
+      "fetched_at": "2026-08-08T18:56:01+00:00",
+      "http_etag": "\"1f3188d325dd5cc8c842bed875f28d1e\"",
+      "http_last_modified": "Fri, 07 Aug 2026 19:25:23 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260803",
+      "sha256": "0c1c5e07dadf96e7908ee6a7330099ee3e6caa8a4894d17f7143fb68716e892c",
+      "url": "http://web.mta.info/developers/data/mnr/google_transit.zip"
+    },
+    "namma-metro": {
+      "builder": "scripts/build_namma_metro_gtfs.py",
+      "bytes": 8018,
+      "fetched_at": "2026-08-08T19:32:20+00:00",
+      "kind": "builder-input-csv",
+      "sha256": "208c49c6656805999021eac9dea8200b427898b8735fa0f640edce46aa7ba5b0",
+      "url": "https://raw.githubusercontent.com/Vinayak-Chinchakhandi/Bengaluru-Metro-Network-Dataset/main/bengaluru_metro_network.csv"
+    },
+    "nyc-subway": {
+      "bytes": 5610175,
+      "fetched_at": "2026-08-08T18:55:53+00:00",
+      "http_etag": "\"357fa77d869a2eeef779171c88fa8f2d\"",
+      "http_last_modified": "Fri, 07 Aug 2026 12:10:36 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260526",
+      "sha256": "056d1fc821f26e859c41ffb227197bdd45dbf4a0c3ef41b3509a5ff6dda4602e",
+      "url": "http://web.mta.info/developers/data/nyct/subway/google_transit.zip"
+    },
+    "ovapi-netherlands": {
+      "bytes": 248816065,
+      "fetched_at": "2026-08-08T19:12:16+00:00",
+      "http_etag": "",
+      "http_last_modified": "",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260907",
+      "sha256": "045c957be5ef332e7d7798ff4c69fe031a879bf0b9c83eed7d1e3af6b9b156ad",
+      "url": "https://gtfs.ovapi.nl/nl/gtfs-nl.zip"
+    },
+    "pid-prague": {
+      "bytes": 45913459,
+      "fetched_at": "2026-08-08T19:07:38+00:00",
+      "http_etag": "\"2bc9573-6587f5b1d4640\"",
+      "http_last_modified": "Sat, 08 Aug 2026 01:51:13 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260410",
+      "sha256": "bfcba37f5c417e1caa1163f6fda4967881a99aa2bbe0d6bc7f698b894293e9b6",
+      "url": "https://data.pid.cz/PID_GTFS.zip"
+    },
+    "ptv-melbourne": {
+      "bytes": 262478162,
+      "fetched_at": "2026-08-08T19:16:45+00:00",
+      "http_etag": "\"4d28ab8b9cce83da7fb1371b724f37d6-16\"",
+      "http_last_modified": "Fri, 07 Aug 2026 00:21:10 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260814",
+      "sha256": "e231caf9b50d51365d64b313c2d35b9291c9f4ed309a7b87f192c4867948225c",
+      "url": "https://data.ptv.vic.gov.au/downloads/gtfs.zip"
+    },
+    "rejseplanen-denmark": {
+      "bytes": 58762403,
+      "fetched_at": "2026-08-08T19:09:44+00:00",
+      "http_etag": "\"e9f068cdb21ddd1:0\"",
+      "http_last_modified": "Mon, 27 Jul 2026 10:29:27 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260821",
+      "sha256": "741212a100025ee06f97f1dd8890b9088054a63c5995759fc8e8d7f33dc70ebc",
+      "url": "https://www.rejseplanen.info/labs/GTFS.zip"
+    },
+    "renfe-spain": {
+      "bytes": 720333,
+      "fetched_at": "2026-08-08T19:14:47+00:00",
+      "http_etag": "\"6a7665e9-afdcd\"",
+      "http_last_modified": "Fri, 07 Aug 2026 23:10:33 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260807",
+      "sha256": "93fce63f1a6df498cbec0cd4ed68f7436bd84bf52df7776b425737e0385a9b32",
+      "url": "https://ssl.renfe.com/gtransit/Fichero_AV_LD/google_transit.zip"
+    },
+    "roma-atac": {
+      "bytes": 36611426,
+      "fetched_at": "2026-08-08T19:15:14+00:00",
+      "http_etag": "\"1786213982.5917056-36611426-3476494098\"",
+      "http_last_modified": "Sat, 08 Aug 2026 18:33:02 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260821",
+      "sha256": "4aa1801b86ded4cb1579b21543b7e305fbdb5b1265654ea89fb7a0b50d81e35c",
+      "url": "https://dati.comune.roma.it/catalog/dataset/a7dadb4a-66ae-4eff-8ded-a102064702ba/resource/266d82e1-ba53-4510-8a81-370880c4678f/download/rome_static_gtfs_test.zip"
+    },
+    "rtd-denver": {
+      "bytes": 8186185,
+      "fetched_at": "2026-08-08T19:01:24+00:00",
+      "http_etag": "",
+      "http_last_modified": "",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260612",
+      "sha256": "d908b651bc0ffff8d02dceacc2203717d413477287084f4f979e09dfcff90d8a",
+      "url": "https://www.rtd-denver.com/files/gtfs/google_transit.zip"
+    },
+    "septa-philadelphia": {
+      "bytes": 20767898,
+      "fetched_at": "2026-08-08T18:59:19+00:00",
+      "http_etag": "\"0x8DEED9575CB8F64\"",
+      "http_last_modified": "Wed, 29 Jul 2026 17:18:51 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260817",
+      "sha256": "1f69e4ad887dd97af3905e49ae7d27fb341401e156adbc809f8ef6890de7cd8d",
+      "url": "https://github.com/septadev/GTFS/releases/latest/download/gtfs_public.zip"
+    },
+    "sncf-intercites": {
+      "bytes": 125913,
+      "fetched_at": "2026-08-08T19:03:12+00:00",
+      "http_etag": "\"67903be2-1ebd9\"",
+      "http_last_modified": "Wed, 22 Jan 2025 00:29:22 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20250131",
+      "sha256": "465aa5e56121b39fca47dfc06248bad9af9d16119f4b3de4cf81e126bc8ce1eb",
+      "url": "https://eu.ftp.opendatasoft.com/sncf/gtfs/export-intercites-gtfs-last.zip"
+    },
+    "sound-transit": {
+      "bytes": 1626482,
+      "fetched_at": "2026-08-08T18:59:34+00:00",
+      "http_etag": "\"fb6ccf25cc9adaf09c1577b646045338\"",
+      "http_last_modified": "Fri, 07 Aug 2026 19:00:21 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260415",
+      "sha256": "2313e907d7ccd4f6d81d42d2cfd1bb5f5c4995f6cb51cac49014d691480a5861",
+      "url": "https://gtfs.sound.obaweb.org/prod/40_gtfs.zip"
+    },
+    "tfi-ireland": {
+      "bytes": 113724693,
+      "fetched_at": "2026-08-08T19:14:35+00:00",
+      "http_etag": "\"6c74d15-6587c170a3d80\"",
+      "http_last_modified": "Fri, 07 Aug 2026 21:57:26 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260814",
+      "sha256": "e64d025ace04cf5dafd1266e91cceeda23fbb715ccf882737cbedfeb327d1e00",
+      "url": "https://www.transportforireland.ie/transitData/Data/GTFS_All.zip"
+    },
+    "translink-seq": {
+      "bytes": 29096778,
+      "fetched_at": "2026-08-08T19:16:55+00:00",
+      "http_etag": "\"0x8DEF4B873948F31\"",
+      "http_last_modified": "Fri, 07 Aug 2026 19:16:58 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260814",
+      "sha256": "495d0c6522c00acab0e7f975ab87d46f0f52a27fb502f0df251fed585a3cbe36",
+      "url": "https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip"
+    },
+    "translink-vancouver": {
+      "bytes": 16266069,
+      "fetched_at": "2026-08-08T19:01:47+00:00",
+      "http_etag": "",
+      "http_last_modified": "Fri, 07 Aug 2026 13:35:52 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260612",
+      "sha256": "3f2378ac89714afe233192933ca9f4ce5d6e82fecd41815f585858e450804ca1",
+      "url": "https://gtfs-static.translink.ca/gtfs/google_transit.zip"
+    },
+    "trimet-portland": {
+      "bytes": 38274938,
+      "fetched_at": "2026-08-08T19:01:12+00:00",
+      "http_etag": "\"248077a-6568a9f0a6c80\"",
+      "http_last_modified": "Tue, 14 Jul 2026 04:27:14 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260803",
+      "sha256": "8fa85dba38a23249e0ff76eb7139bed1f605c5552e6602709bba974685f72e94",
+      "url": "https://developer.trimet.org/schedule/gtfs.zip"
+    },
+    "uta-utah": {
+      "bytes": 4376282,
+      "fetched_at": "2026-08-08T19:01:40+00:00",
+      "http_etag": "\"e26df8f57026dd1:0\"",
+      "http_last_modified": "Fri, 07 Aug 2026 13:30:49 GMT",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260821",
+      "sha256": "00fa316e81d4e79beb04341bfa04092a17a6870a8d8290332446d14e06dfcf4f",
+      "url": "https://gtfsfeed.rideuta.com/gtfs.zip"
+    },
+    "wienerlinien": {
+      "bytes": 81686302,
+      "fetched_at": "2026-08-08T19:05:44+00:00",
+      "http_etag": "",
+      "http_last_modified": "",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260327",
+      "sha256": "01a8f2a528d047d795db3d641f9e0a9102a384d3c6b1e515d83b9119c1bcfce0",
+      "url": "https://www.wienerlinien.at/ogd_realtime/doku/ogd/gtfs/gtfs.zip"
+    },
+    "ztm-warsaw": {
+      "bytes": 102687859,
+      "fetched_at": "2026-08-08T19:07:59+00:00",
+      "http_etag": "",
+      "http_last_modified": "",
+      "kind": "gtfs-zip",
+      "service_day": "auto-selected weekday 20260807",
+      "sha256": "fbfe9d39b39a91820f26a7bc854d8263e9de128efbea61ab9c54cef92959c268",
+      "url": "https://mkuran.pl/gtfs/warsaw.zip"
+    }
+  },
+  "schema": 1
+}

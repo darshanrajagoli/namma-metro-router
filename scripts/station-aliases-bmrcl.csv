@@ -1,0 +1,44 @@
+# Station-name aliases: BMRCL's published ridership names -> the names in the
+# Namma Metro feed that scripts/build_namma_metro_gtfs.py produces.
+#
+# FORMAT
+#   ridership_name|gtfs_stop_name
+# Pipe-separated, not comma-separated: two of the names below contain commas,
+# and a comma separator would cut the key in half so the alias never matched.
+# Lines beginning with '#' are comments. Matching is applied to the RAW
+# ridership name before normalisation, so these are copied verbatim from the
+# published file.
+#
+# WHY THESE EXIST
+# The ridership figures come from BMRCL under RTI; the network topology comes
+# from an independent open dataset of the Bengaluru metro. The two spell eight
+# stations differently — transliteration variants, mostly, plus two where BMRCL
+# includes the sponsor prefix and the topology dataset does not. Rather than
+# make the name matcher looser (which risks silently attributing one station's
+# passengers to a different station), the eight genuine differences are listed
+# here explicitly. Everything else matches on normalised name alone.
+#
+# The matcher deliberately does NOT strip words like "Road" or "Nagar": "Mysuru
+# Road" is not "Mysuru", and a matcher aggressive enough to merge them would
+# also merge stations that are genuinely distinct.
+
+Garudacharpalya|Garudacharapalya
+Jaya Prakash Nagar|Jayaprakash Nagar
+Manjunathanagara|Manjunath Nagar
+Mysore Road|Mysuru Road
+Nallurahalli|Nallurhalli
+Sir M. Visvesvaraya Stn., Central College|Sir M Visvesvaraya Central College
+Sri Balagangadharanatha Swamiji Station, Hosahalli|Sri Balagangadharanatha Swamiji Hosahalli
+Yeshwantpur|Yeshwanthpur
+
+# NOT an alias, and left unmatched on purpose:
+#
+#   Electronic City
+#
+# BMRCL reports ridership for a Yellow Line station called Electronic City that
+# the topology dataset does not contain at all — it lists the neighbouring
+# Infosys Foundation Konappana Agrahara, Huskur Road, Biocon Hebbagodi and Delta
+# Electronics Bommasandra, but nothing between Beratena Agrahara and Konappana
+# Agrahara. Inventing a mapping would attribute a real station's passengers to a
+# different one. It stays unmatched, the tool reports it, and the feed keeps 82
+# stations against the ridership file's 83.

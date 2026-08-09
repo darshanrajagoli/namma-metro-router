@@ -1,0 +1,370 @@
+{
+  "schema": 1,
+  "description": "Feed manifest for the multi-feed trade-off study. Every entry is a published static GTFS feed reachable by anonymous HTTP at the time noted in `probed`. No credentials, no API keys, no scraping: a feed that needs an account is listed under `unavailable` with the reason, because a study you cannot re-run is not a study.",
+  "probed": "2026-08-08",
+  "scope": "Rail modes only. scripts/prefilter_gtfs.py keeps GTFS route_type in {0,1,2,5,7,11,12} (tram, subway, rail, cable, funicular, monorail) and drops bus and ferry. The unit of comparison is a city's fixed-guideway network, so a regional feed contributes its rail layer and nothing else.",
+  "licence_note": "Licences differ per agency and are NOT asserted here. Each entry carries `source_page`; check it before redistributing any feed. This pipeline downloads feeds at run time and does not vendor them into the repository.",
+  "feeds": [
+    {
+      "slug": "bart",
+      "city": "San Francisco Bay Area",
+      "country": "US",
+      "agency": "Bay Area Rapid Transit",
+      "url": "https://www.bart.gov/dev/schedules/google_transit.zip",
+      "source_page": "https://www.bart.gov/schedules/developers/gtfs"
+    },
+    {
+      "slug": "mbta-boston",
+      "city": "Boston",
+      "country": "US",
+      "agency": "MBTA",
+      "url": "https://cdn.mbta.com/MBTA_GTFS.zip",
+      "source_page": "https://www.mbta.com/developers/gtfs"
+    },
+    {
+      "slug": "nyc-subway",
+      "city": "New York City",
+      "country": "US",
+      "agency": "MTA New York City Transit",
+      "url": "http://web.mta.info/developers/data/nyct/subway/google_transit.zip",
+      "source_page": "https://www.mta.info/developers"
+    },
+    {
+      "slug": "mta-metro-north",
+      "city": "New York (Metro-North)",
+      "country": "US",
+      "agency": "MTA Metro-North Railroad",
+      "url": "http://web.mta.info/developers/data/mnr/google_transit.zip",
+      "source_page": "https://www.mta.info/developers"
+    },
+    {
+      "slug": "mta-lirr",
+      "city": "New York (Long Island)",
+      "country": "US",
+      "agency": "MTA Long Island Rail Road",
+      "url": "http://web.mta.info/developers/data/lirr/google_transit.zip",
+      "source_page": "https://www.mta.info/developers"
+    },
+    {
+      "slug": "cta-chicago",
+      "city": "Chicago",
+      "country": "US",
+      "agency": "Chicago Transit Authority",
+      "url": "https://www.transitchicago.com/downloads/sch_data/google_transit.zip",
+      "source_page": "https://www.transitchicago.com/developers/"
+    },
+    {
+      "slug": "metra-chicago",
+      "city": "Chicago (commuter rail)",
+      "country": "US",
+      "agency": "Metra",
+      "url": "https://schedules.metrarail.com/gtfs/schedule.zip",
+      "source_page": "https://metra.com/developers"
+    },
+    {
+      "slug": "septa-philadelphia",
+      "city": "Philadelphia",
+      "country": "US",
+      "agency": "SEPTA",
+      "url": "https://github.com/septadev/GTFS/releases/latest/download/gtfs_public.zip",
+      "source_page": "https://github.com/septadev/GTFS",
+      "inner": "google_rail.zip",
+      "note": "The published archive contains google_bus.zip and google_rail.zip and no feed at the top level. This study's scope is rail, so the rail archive is named explicitly rather than guessed."
+    },
+    {
+      "slug": "marta-atlanta",
+      "city": "Atlanta",
+      "country": "US",
+      "agency": "MARTA",
+      "url": "https://www.itsmarta.com/google_transit_feed/google_transit.zip",
+      "source_page": "https://www.itsmarta.com/app-developer-resources.aspx"
+    },
+    {
+      "slug": "lametro-rail",
+      "city": "Los Angeles",
+      "country": "US",
+      "agency": "LA Metro (rail)",
+      "url": "https://gitlab.com/LACMTA/gtfs_rail/-/raw/master/gtfs_rail.zip",
+      "source_page": "https://developer.metro.net/"
+    },
+    {
+      "slug": "sound-transit",
+      "city": "Seattle",
+      "country": "US",
+      "agency": "Sound Transit",
+      "url": "https://gtfs.sound.obaweb.org/prod/40_gtfs.zip",
+      "source_page": "https://www.soundtransit.org/help-contacts/business-information/open-transit-data-otd"
+    },
+    {
+      "slug": "trimet-portland",
+      "city": "Portland",
+      "country": "US",
+      "agency": "TriMet",
+      "url": "https://developer.trimet.org/schedule/gtfs.zip",
+      "source_page": "https://developer.trimet.org/GTFS.shtml"
+    },
+    {
+      "slug": "rtd-denver",
+      "city": "Denver",
+      "country": "US",
+      "agency": "RTD",
+      "url": "https://www.rtd-denver.com/files/gtfs/google_transit.zip",
+      "source_page": "https://www.rtd-denver.com/open-records/open-spatial-information"
+    },
+    {
+      "slug": "dart-dallas",
+      "city": "Dallas",
+      "country": "US",
+      "agency": "DART",
+      "url": "https://www.dart.org/transitdata/latest/google_transit.zip",
+      "source_page": "https://www.dart.org/about/about-dart/developer-resources"
+    },
+    {
+      "slug": "miami-dade",
+      "city": "Miami",
+      "country": "US",
+      "agency": "Miami-Dade Transit",
+      "url": "https://www.miamidade.gov/transit/googletransit/current/google_transit.zip",
+      "source_page": "https://www.miamidade.gov/global/transportation/transit-developers.page"
+    },
+    {
+      "slug": "uta-utah",
+      "city": "Salt Lake City",
+      "country": "US",
+      "agency": "Utah Transit Authority",
+      "url": "https://gtfsfeed.rideuta.com/gtfs.zip",
+      "source_page": "https://www.rideuta.com/Rider-Tools/Developer-Resources"
+    },
+    {
+      "slug": "translink-vancouver",
+      "city": "Vancouver",
+      "country": "CA",
+      "agency": "TransLink",
+      "url": "https://gtfs-static.translink.ca/gtfs/google_transit.zip",
+      "source_page": "https://www.translink.ca/about-us/doing-business-with-translink/app-developer-resources"
+    },
+    {
+      "slug": "calgary",
+      "city": "Calgary",
+      "country": "CA",
+      "agency": "Calgary Transit",
+      "url": "https://data.calgary.ca/download/npk7-z3bj/application%2Fx-zip-compressed",
+      "source_page": "https://data.calgary.ca/Transportation-Transit/Calgary-Transit-Scheduling-Data/npk7-z3bj"
+    },
+    {
+      "slug": "idfm-paris",
+      "city": "Paris / Ile-de-France",
+      "country": "FR",
+      "agency": "Ile-de-France Mobilites",
+      "url": "https://eu.ftp.opendatasoft.com/stif/GTFS/IDFM-gtfs.zip",
+      "source_page": "https://prim.iledefrance-mobilites.fr/"
+    },
+    {
+      "slug": "sncf-intercites",
+      "city": "France (Intercites)",
+      "country": "FR",
+      "agency": "SNCF",
+      "url": "https://eu.ftp.opendatasoft.com/sncf/gtfs/export-intercites-gtfs-last.zip",
+      "source_page": "https://ressources.data.sncf.com/explore/dataset/horaires-des-lignes-intercites-gtfs/"
+    },
+    {
+      "slug": "gtfs-de-germany",
+      "city": "Germany (long-distance and regional rail)",
+      "country": "DE",
+      "agency": "gtfs.de aggregate",
+      "url": "https://download.gtfs.de/germany/free/latest.zip",
+      "source_page": "https://gtfs.de/en/feeds/de_free/"
+    },
+    {
+      "slug": "wienerlinien",
+      "city": "Vienna",
+      "country": "AT",
+      "agency": "Wiener Linien",
+      "url": "https://www.wienerlinien.at/ogd_realtime/doku/ogd/gtfs/gtfs.zip",
+      "source_page": "https://www.data.gv.at/katalog/dataset/wiener-linien-fahrplandaten-gtfs-wien"
+    },
+    {
+      "slug": "pid-prague",
+      "city": "Prague",
+      "country": "CZ",
+      "agency": "Prazska integrovana doprava",
+      "url": "https://data.pid.cz/PID_GTFS.zip",
+      "source_page": "https://pid.cz/o-systemu/opendata/"
+    },
+    {
+      "slug": "ztm-warsaw",
+      "city": "Warsaw",
+      "country": "PL",
+      "agency": "ZTM Warszawa (mkuran mirror)",
+      "url": "https://mkuran.pl/gtfs/warsaw.zip",
+      "source_page": "https://mkuran.pl/gtfs/"
+    },
+    {
+      "slug": "hsl-helsinki",
+      "city": "Helsinki",
+      "country": "FI",
+      "agency": "HSL",
+      "url": "https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip",
+      "source_page": "https://www.hsl.fi/en/hsl/open-data"
+    },
+    {
+      "slug": "rejseplanen-denmark",
+      "city": "Denmark",
+      "country": "DK",
+      "agency": "Rejseplanen",
+      "url": "https://www.rejseplanen.info/labs/GTFS.zip",
+      "source_page": "https://help.rejseplanen.dk/hc/en-us/articles/214174465"
+    },
+    {
+      "slug": "entur-norway",
+      "city": "Norway",
+      "country": "NO",
+      "agency": "Entur",
+      "url": "https://storage.googleapis.com/marduk-production/outbound/gtfs/rb_norway-aggregated-gtfs.zip",
+      "source_page": "https://developer.entur.org/pages-nsr-nsr"
+    },
+    {
+      "slug": "ovapi-netherlands",
+      "city": "Netherlands",
+      "country": "NL",
+      "agency": "OVapi aggregate",
+      "url": "https://gtfs.ovapi.nl/nl/gtfs-nl.zip",
+      "source_page": "https://gtfs.ovapi.nl/"
+    },
+    {
+      "slug": "tfi-ireland",
+      "city": "Ireland",
+      "country": "IE",
+      "agency": "Transport for Ireland",
+      "url": "https://www.transportforireland.ie/transitData/Data/GTFS_All.zip",
+      "source_page": "https://www.transportforireland.ie/transitData/PT_Data.html"
+    },
+    {
+      "slug": "renfe-spain",
+      "city": "Spain (long-distance rail)",
+      "country": "ES",
+      "agency": "Renfe",
+      "url": "https://ssl.renfe.com/gtransit/Fichero_AV_LD/google_transit.zip",
+      "source_page": "https://data.renfe.com/dataset/horarios-de-alta-velocidad-larga-distancia-y-media-distancia"
+    },
+    {
+      "slug": "fgc-barcelona",
+      "city": "Barcelona",
+      "country": "ES",
+      "agency": "Ferrocarrils de la Generalitat de Catalunya",
+      "url": "https://www.fgc.cat/google/google_transit.zip",
+      "source_page": "https://www.fgc.cat/dades-obertes/"
+    },
+    {
+      "slug": "roma-atac",
+      "city": "Rome",
+      "country": "IT",
+      "agency": "ATAC / Roma Mobilita",
+      "url": "https://dati.comune.roma.it/catalog/dataset/a7dadb4a-66ae-4eff-8ded-a102064702ba/resource/266d82e1-ba53-4510-8a81-370880c4678f/download/rome_static_gtfs_test.zip",
+      "source_page": "https://dati.comune.roma.it/catalog/dataset/c_h501-d-9000"
+    },
+    {
+      "slug": "israel-mot",
+      "city": "Israel",
+      "country": "IL",
+      "agency": "Ministry of Transport",
+      "url": "https://gtfs.mot.gov.il/gtfsfiles/israel-public-transportation.zip",
+      "source_page": "https://www.gov.il/en/departments/general/gtfs_general_transit_feed_specifications"
+    },
+    {
+      "slug": "dtpm-santiago",
+      "city": "Santiago",
+      "country": "CL",
+      "agency": "DTPM / Metro de Santiago",
+      "url": "https://www.dtpm.cl/descargas/gtfs/GTFS.zip",
+      "source_page": "https://www.dtpm.cl/index.php/gtfs-vigente"
+    },
+    {
+      "slug": "at-auckland",
+      "city": "Auckland",
+      "country": "NZ",
+      "agency": "Auckland Transport",
+      "url": "https://gtfs.at.govt.nz/gtfs.zip",
+      "source_page": "https://dev-portal.at.govt.nz/"
+    },
+    {
+      "slug": "ptv-melbourne",
+      "city": "Melbourne",
+      "country": "AU",
+      "agency": "Public Transport Victoria",
+      "url": "https://data.ptv.vic.gov.au/downloads/gtfs.zip",
+      "source_page": "https://discover.data.vic.gov.au/dataset/ptv-timetable-and-geographic-information-gtfs",
+      "inner": "2/google_transit.zip",
+      "note": "PTV ships one numbered directory per mode, each containing its own google_transit.zip, with no feed at the top level. Directory 2 is Metropolitan Train — Melbourne's suburban rail network, the comparable unit here. Directory 1 is regional train, 3 is tram, 4-6 are bus and coach."
+    },
+    {
+      "slug": "translink-seq",
+      "city": "Brisbane / South East Queensland",
+      "country": "AU",
+      "agency": "TransLink Queensland",
+      "url": "https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip",
+      "source_page": "https://translink.com.au/about-translink/open-data"
+    },
+    {
+      "slug": "namma-metro",
+      "city": "Bengaluru",
+      "country": "IN",
+      "agency": "BMRCL",
+      "url": "https://raw.githubusercontent.com/Vinayak-Chinchakhandi/Bengaluru-Metro-Network-Dataset/main/bengaluru_metro_network.csv",
+      "source_page": "https://github.com/Vinayak-Chinchakhandi/Bengaluru-Metro-Network-Dataset",
+      "builder": "scripts/build_namma_metro_gtfs.py",
+      "note": "Not a published GTFS feed. Real station topology and coordinates from an open dataset; the timetable is MODELLED at a fixed headway by the repository's own builder script. It is included because it is the network the project is named after and the one the tree hypothesis came from, and it is flagged as modelled in every table it appears in."
+    }
+  ],
+  "unavailable": [
+    {
+      "slug": "delhi-dmrc",
+      "city": "Delhi",
+      "country": "IN",
+      "reason": "otd.delhi.gov.in serves an HTML login page to anonymous requests; the static DMRC GTFS needs a registered account. Delhi has genuine parallel routes and would be the single most valuable Indian addition to this study.",
+      "source_page": "https://otd.delhi.gov.in/"
+    },
+    {
+      "slug": "wmata-washington",
+      "city": "Washington DC",
+      "country": "US",
+      "reason": "api.wmata.com returns HTTP 401 without a subscription key.",
+      "source_page": "https://developer.wmata.com/"
+    },
+    {
+      "slug": "hong-kong",
+      "city": "Hong Kong",
+      "country": "HK",
+      "reason": "static.data.gov.hk returned HTTP 403 to the probe.",
+      "source_page": "https://data.gov.hk/en-data/dataset/hk-td-tis_21-etagtfs"
+    },
+    {
+      "slug": "bkk-budapest",
+      "city": "Budapest",
+      "country": "HU",
+      "reason": "bkk.hu returned HTTP 403 to the probe; the documented endpoint now requires an API key.",
+      "source_page": "https://opendata.bkk.hu/"
+    },
+    {
+      "slug": "vbb-berlin",
+      "city": "Berlin",
+      "country": "DE",
+      "reason": "The documented VBB GTFS URL returned HTTP 404. Berlin rail is partially covered by the gtfs.de aggregate feed included above.",
+      "source_page": "https://www.vbb.de/vbb-services/api-open-data/datensaetze/"
+    },
+    {
+      "slug": "stm-montreal",
+      "city": "Montreal",
+      "country": "CA",
+      "reason": "stm.info reset the connection on repeated anonymous probes.",
+      "source_page": "https://www.stm.info/en/about/developers"
+    },
+    {
+      "slug": "opentransportdata-swiss",
+      "city": "Switzerland",
+      "country": "CH",
+      "reason": "The permalink endpoint returned HTTP 404; the current dataset id changes each timetable year and would have to be re-resolved on every run, which defeats pinning.",
+      "source_page": "https://opentransportdata.swiss/en/group/timetables-gtfs/"
+    }
+  ]
+}

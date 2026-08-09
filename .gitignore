@@ -32,6 +32,21 @@ data_*/
 raw_*/
 *.zip
 
+# Multi-feed study working directory: downloaded archives, unpacked raw feeds,
+# the rail-filtered and normalised copies. Several gigabytes, all of it
+# regenerable by scripts/fetch_feeds.py.
+#
+# feeds.lock.json is the ONE exception: it is the checksum of every input a
+# published number came from, so it belongs in the repository even though
+# everything around it does not. Note the pattern is `feeds/*` and not `feeds/`
+# — git does not descend into an excluded DIRECTORY, so a negation inside one
+# never fires.
+feeds/*
+!feeds/feeds.lock.json
+
+# Ridership data fetched by scripts/fetch_ridership.py (with its own lock file).
+data-ridership/
+
 # Editor artifacts
 .vscode/
 .idea/
@@ -44,9 +59,13 @@ raw_*/
 *.asan
 *.ubsan
 
-# Benchmark output (generated — add results/ manually if you want them tracked)
+# Benchmark and study output (generated — add results/ manually if you want them
+# tracked). scripts/reproduce.sh writes all of these.
 results/*.txt
 results/*.csv
+results/*.md
+results/*.svg
+results/*.log
 
 # Local-only working notes — never publish to the portfolio repo
 ANALYSIS.md
