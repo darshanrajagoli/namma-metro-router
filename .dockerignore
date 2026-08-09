@@ -1,0 +1,52 @@
+# Build context exclusions.
+#
+# WITHOUT THIS FILE THE IMAGE IS UNBUILDABLE IN PRACTICE. `docker build` sends
+# the whole directory to the daemon before running a single instruction, and
+# after scripts/fetch_feeds.py has run, feeds/ holds several gigabytes of GTFS
+# archives. The Dockerfile does not COPY any of it — the container fetches its
+# own — but the context is assembled regardless, so the build appears to hang
+# for minutes on "sending build context" and then copies data it will not use.
+
+# Study working directory: downloaded archives, unpacked and normalised feeds.
+# The container fetches these itself; the lock file is the only part worth
+# carrying, and even that is not needed to build.
+feeds/
+data-ridership/
+
+# Local build trees and generated results.
+build/
+build_*/
+cmake-build-*/
+results/
+CMakeCache.txt
+CMakeFiles/
+
+# Version control and editor state.
+.git/
+.github/
+.vscode/
+.idea/
+
+# Compiled LaTeX and other generated documents.
+docs/*.pdf
+docs/*.aux
+docs/*.log
+docs/*.out
+docs/*.toc
+docs/*.synctex.gz
+docs/*.fls
+docs/*.fdb_latexmk
+
+# Legacy data directories from the pre-study workflow.
+data/
+data_*/
+raw_*/
+*.zip
+
+# Local-only working notes. These are git-ignored too; keeping them out of the
+# image as well means a published container cannot leak them.
+ANALYSIS.md
+WORKFLOW.md
+RESUME_PROMPT.md
+BIBLE-*.md
+WHERE-TO-GO-NEXT.md

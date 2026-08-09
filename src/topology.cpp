@@ -136,13 +136,20 @@ namespace namma_metro
         std::map<std::pair<uint32_t, uint32_t>, std::set<std::string>> link_routes;
         // Directed PLATFORM link -> departure times, for headway.
         //
-        // Platform level, not station level, and that is load-bearing. On a feed
-        // that keeps platforms separate, the northbound and southbound segments
-        // between two stations both collapse onto the same directed station
-        // pair, so their departures interleave and the apparent headway halves —
-        // BART came out at a median of 0 seconds, which is not a headway, it is
-        // an artefact. A directed platform pair is one track in one direction,
-        // which is what "how often does a train run here" means.
+        // Platform level, not station level. On a feed that keeps platforms
+        // separate, the two directions between a pair of stations collapse onto
+        // the same directed station pair, so their departures interleave and the
+        // reported headway comes out shorter than any train actually runs. A
+        // directed platform pair is one track in one direction, which is what
+        // "how often does a train run here" means.
+        //
+        // Measured on the study's own feeds, the difference is real but modest:
+        // BART 660s at platform level against 600s at station level, Boston
+        // 1980s against 1800s — about 9% in both — and no difference at all on a
+        // feed whose platforms are already collapsed. It is not the cause of the
+        // zero-second headway this project once reported; that was the feed
+        // carrying three service-day variants of every trip at once, and it is
+        // fixed in scripts/prefilter_gtfs.py.
         std::map<std::pair<uint32_t, uint32_t>, std::vector<uint32_t>> platform_link_departures;
         std::unordered_set<uint32_t> served_platforms;
         std::unordered_map<uint32_t, std::set<std::string>> station_routes;
@@ -198,13 +205,16 @@ namespace namma_metro
                 served.insert(sv);
             }
 
-            platform_link_departures[{it_u->second, it_v->second}].push_back(from.departure_time);
-
             // A segment between two platforms of the SAME station is a shunting
             // move, not a link a passenger can choose. It still counts as
-            // service (above) but contributes no edge to the station graph.
+            // service (above) and the route still serves that station, but it
+            // contributes no edge to the station graph — and, below, no headway
+            // either, so that the frequency metric describes exactly the links
+            // the structural metrics report and not a superset of them.
             if (su == sv)
                 continue;
+
+            platform_link_departures[{it_u->second, it_v->second}].push_back(from.departure_time);
 
             // operator[] creates the link entry even when the trip's route_id is
             // unknown, so a feed without trips.txt still yields a correct link

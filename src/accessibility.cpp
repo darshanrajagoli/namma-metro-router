@@ -13,7 +13,8 @@ namespace namma_metro
     AccessibilitySurface compute_accessibility(
         const RaptorTimetable &tt,
         const std::vector<uint32_t> &origins,
-        const AccessibilityConfig &config)
+        const AccessibilityConfig &config,
+        const std::vector<uint32_t> &destinations)
     {
         AccessibilitySurface surface;
         surface.config = config;
@@ -21,6 +22,19 @@ namespace namma_metro
         surface.num_thresholds = static_cast<uint32_t>(config.thresholds_s.size());
         surface.num_budgets = config.max_changes + 1;
         surface.per_origin.reserve(origins.size());
+
+        // Materialise the destination set once. Empty means every stop.
+        std::vector<uint32_t> dests;
+        if (destinations.empty())
+        {
+            dests.reserve(tt.num_stops);
+            for (uint32_t v = 0; v < tt.num_stops; ++v)
+                dests.push_back(v);
+        }
+        else
+        {
+            dests = destinations;
+        }
 
         // A change budget of c means at most c + 1 vehicles, i.e. RAPTOR round
         // c + 1. Ask the engine for one more round than the largest budget so
@@ -44,9 +58,9 @@ namespace namma_metro
                     // tau is non-increasing in the round index, so "at most c
                     // changes" is one layer lookup, not a scan.
                     const uint32_t round = std::min(c + 1u, rr.rounds);
-                    for (uint32_t v = 0; v < tt.num_stops; ++v)
+                    for (const uint32_t v : dests)
                     {
-                        if (v == origin)
+                        if (v == origin || v >= tt.num_stops)
                             continue;
                         const uint32_t arr = rr.arrival(round, v);
                         if (arr == RAPTOR_UNREACHED)

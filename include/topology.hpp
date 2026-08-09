@@ -111,8 +111,10 @@ namespace namma_metro
         /// Median over directed PLATFORM links of that link's median headway,
         /// restricted to the 07:00-21:00 window the benchmark samples. Platform
         /// rather than station because the two directions between a pair of
-        /// stations use different platforms, and merging them halves the
-        /// apparent headway. Zero when no link has two departures in the window.
+        /// stations use different platforms, and merging them interleaves their
+        /// departures into a headway shorter than any train runs (measured: 660s
+        /// against 600s on BART, 1980s against 1800s on Boston). Zero when no
+        /// link has two departures in the window.
         double median_link_headway_s = 0.0;
 
         /// Human-readable one-line summary, for tool output.

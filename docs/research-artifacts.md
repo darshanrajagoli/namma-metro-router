@@ -9,7 +9,7 @@ Start with [study.md](study.md). It is the one with a research question in it.
 
 | | What it is | Read | Build target |
 |---|---|---|---|
-| **1** | **The multi-feed study.** Across 38 published transit feeds worldwide: how often does a genuine time-versus-changes trade-off exist, and what predicts it? | [study.md](study.md) | `routing_engine_study` |
+| **1** | **The multi-feed study.** Across 38 real transit networks worldwide: how often does a genuine time-versus-changes trade-off exist, and what predicts it? | [study.md](study.md) | `routing_engine_study` |
 | **2** | **RAPTOR.** A second, independent implementation — used as a speed baseline, as an exactness oracle, and as the ground truth for (1). | [raptor.md](raptor.md) | `routing_engine_raptor_bench` |
 | **3** | **The reproducibility artifact.** Docker image, checksum-pinned feeds, one command that regenerates every figure. | [reproducibility.md](reproducibility.md) | `scripts/reproduce.sh` |
 | **4** | **A crowd model made of measurements.** BMRCL's station-hourly ridership, obtained under RTI, replacing a Gaussian that was constant across the whole city. | [crowd-model.md](crowd-model.md) | `routing_engine_crowd_study` |
@@ -49,7 +49,7 @@ scripts/fetch_ridership.py          the BMRCL RTI dataset, pinned
 scripts/station-aliases-bmrcl.csv   the eight names that genuinely differ
 scripts/reproduce.sh                every result, one command
 
-Dockerfile  CITATION.cff  .zenodo.json
+Dockerfile  .dockerignore  CITATION.cff  .zenodo.json
 ```
 
 **Not one line of pre-existing `include/`, `src/`, `tests/` or `tools/` code was
@@ -69,12 +69,14 @@ the code they were taken from.
 
 ## The test suite
 
-85 cases before, **136** after, all green under AddressSanitizer and UBSan.
+85 cases before, **137** after, all green under AddressSanitizer and UBSan.
 
-The 51 new ones are not coverage padding. The strongest of them,
+The 52 new ones are not coverage padding. The strongest of them,
 `RaptorVsEngine.UnrestrictedEngineAgreesExactlyOnEarliestArrival`, runs two
 unrelated algorithms over randomised networks and asserts they agree on every
 arrival at every node — which is worth more than any expectation written by
-whoever wrote the implementation. Several others are named after a wrong number
-that was actually produced during development: a headway of zero seconds, an
-interchange density of exactly 1.000, an "exact" oracle that the engine beat.
+whoever wrote the implementation. Several others are named after something that
+was actually wrong during development: an interchange density of exactly 1.000,
+a headway deflated by merging two directions of one track, an "exact" oracle that
+the engine beat, and a tool that carried its own copy of a library loop so the
+tests covered code nothing ran.

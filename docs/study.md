@@ -1,6 +1,6 @@
 # When does multi-objective transit routing actually matter?
 
-An empirical study across the world's published transit feeds.
+An empirical study across 38 real transit networks worldwide.
 
 `tools/study.cpp` · `include/topology.hpp` · `scripts/feeds.json` ·
 `scripts/fetch_feeds.py` · `scripts/prefilter_gtfs.py` · `scripts/run_study.py` ·
@@ -87,25 +87,37 @@ Three definitional decisions do real work:
 
 - **Headway is per directed *platform* link.** The two directions between a pair
   of stations use different platforms; merging them interleaves their departures
-  and halves the apparent headway. BART came out at a median of 0 seconds, which
-  is not a headway, it is an artefact.
+  into a headway shorter than any train actually runs — measured, 660 s against
+  600 s on BART and 1980 s against 1800 s on Boston, and no difference at all on
+  a feed whose platforms are already collapsed.
 
-Each of these was a wrong number first, and each has a test named after the
-failure in `tests/test_topology.cpp`.
+The first two were a wrong number before they were a decision, and all three
+have a test in `tests/test_topology.cpp` named after what they get wrong.
+
+(The *zero-second* headway this project once reported was a different fault
+entirely — the feed was carrying three service-day variants of every trip, so
+the same train appeared three times at the same second. That one is fixed in
+`scripts/prefilter_gtfs.py`, below.)
 
 ## The feeds
 
-`scripts/feeds.json`: 38 published static GTFS feeds reachable by anonymous
+`scripts/feeds.json`: **37 published static GTFS feeds** reachable by anonymous
 HTTP — no credentials, no API keys, no scraping — across North America, Europe,
-the Middle East, South America and Australasia. A second list records the feeds
-that are **not** reachable, with the reason, so a reader can tell "excluded"
-from "unobtainable without an account". Delhi is the most painful of those: it
-has genuine parallel routes and would be the single most valuable Indian
-addition.
+the Middle East, South America and Australasia, **plus Bengaluru**, which is not
+a GTFS feed at all.
 
-Bengaluru is included and flagged everywhere it appears: real station topology
-and coordinates from an open dataset, but a **modelled** timetable, because
-BMRCL publishes no open GTFS.
+Bengaluru is the 38th, and it is different in kind: real station topology and
+coordinates from an open dataset, but a **modelled** timetable at a fixed
+headway, because BMRCL publishes no open GTFS. Its manifest entry carries a
+`builder` field, and `scripts/analyze_study.py` reads that field and marks the
+feed in every table it appears in. It is included because it is the network the
+project is named after and the one the whole question came from — not because
+its timetable is comparable to the others.
+
+A second list in the manifest records the feeds that are **not** reachable, with
+the reason, so a reader can tell "excluded" from "unobtainable without an
+account". Delhi is the most painful of those: it has genuine parallel routes and
+would be the single most valuable Indian addition.
 
 Three normalisation decisions matter for comparability, all in
 `scripts/prefilter_gtfs.py`:
@@ -149,7 +161,8 @@ python3 scripts/run_study.py --workdir feeds --build build --pin-core 3
 
 # 4. the answer
 python3 scripts/analyze_study.py feeds/study-results.csv
-python3 scripts/analyze_study.py feeds/study-results.csv --markdown > results/study-results.md
+mkdir -p results && python3 scripts/analyze_study.py feeds/study-results.csv \
+    --markdown > results/study-results.md
 ```
 
 Or all of it at once with `bash scripts/reproduce.sh`.
@@ -193,6 +206,11 @@ observations, 3,528,510 arrivals compared against the oracle, **0** cases of the
 engine beating it, 0 queries lost to the round cap. Feed checksums in
 `feeds/feeds.lock.json`. Regenerate with `bash scripts/reproduce.sh`.
 
+Two independent sweeps of the same feeds were compared cell by cell: **all 2,394
+non-timing cells identical** (38 feeds × 63 columns). The latency columns are the
+only ones that move, by a median of 4.2% and at most 19.3% between sweeps on the
+same pinned core — which is why no conclusion below rests on an exact ratio.
+
 **1. The trade-off rate varies enormously, and it is not noise.** From 0.00% to
 51.55% of reached observations. Bengaluru at 0.00% is not an outlier; it is one
 end of a spectrum.
@@ -227,13 +245,18 @@ comparisons, mean gap 65 minutes, and 562,817 destinations it does not reach at
 all that RAPTOR does. The pattern is service density — a 30-minute window is
 generous on a metro and useless on regional rail.
 
-**6. RAPTOR wins, except where it does not.** Faster on 34 of 38, median
-**2.91×** (range 0.05× to 27.92×). The interesting part is the crossover: it is
-**slower** on Renfe (0.05×), SNCF Intercités (0.09×), Ireland (0.45×) and Metra
-(0.63×) — every one sparse, wide-area rail. RAPTOR scans a whole route once any
-stop on it is marked; a label-correcting search on a graph that thin settles a
-handful of labels and stops. Note also the `unreached` column for those feeds:
-part of the engine's win there is work it did not do.
+**6. RAPTOR wins, except where it does not.** Faster on **34 of 38** feeds,
+median ratio **about 3×** (2.91–2.99× across repeat sweeps; the per-run figures
+are in `results/study-results.md`, and only those are exact — the latency
+columns move a few percent between runs while everything above is
+deterministic).
+
+The interesting part is the crossover, and it is stable: RAPTOR is **slower** on
+Renfe, SNCF Intercités, Ireland and Metra on every sweep — every one of them
+sparse, wide-area rail. RAPTOR scans a whole route once any stop on it is
+marked; a label-correcting search on a graph that thin settles a handful of
+labels and stops. Note also the `unreached` column for those feeds: part of the
+engine's win there is work it did not do.
 
 The README's old concession — *"RAPTOR would very likely be faster for this
 specific objective"* — is now a measured statement with a regime attached.

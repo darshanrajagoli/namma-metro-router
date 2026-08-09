@@ -115,10 +115,14 @@ def main():
         print("  numbers produced before and after are not directly comparable.")
 
     with zipfile.ZipFile(zip_path) as z:
-        names = [n for n in z.namelist() if n.lower().endswith(".csv")]
+        # Sorted, so that an archive carrying more than one CSV picks the same
+        # one on every machine rather than whichever the zip index lists first.
+        names = sorted(n for n in z.namelist() if n.lower().endswith(".csv"))
         if not names:
             print("ERROR: archive contains no .csv", file=sys.stderr)
             return 1
+        if len(names) > 1:
+            print(f"note: archive has {len(names)} CSVs; using {names[0]}")
         root = os.path.realpath(out)
         for n in names:
             target = os.path.realpath(os.path.join(out, n))

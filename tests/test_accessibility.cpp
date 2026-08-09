@@ -87,6 +87,34 @@ TEST(Accessibility, ChangeBudgetChangesWhatCounts)
     EXPECT_DOUBLE_EQ(surface.gap(0, 0), 1.0);
 }
 
+// The destination filter is what stops a platform-separated feed from counting
+// every platform of a station as somewhere else you can get to. tools/isochrone
+// passes one representative per station for exactly this reason, so the filter
+// has to actually filter.
+TEST(Accessibility, DestinationFilterRestrictsWhatIsCounted)
+{
+    auto idx = kIdx;
+    auto tt = RaptorBuilder::build(two_service_network(), 4, &idx, {});
+
+    AccessibilityConfig cfg;
+    cfg.thresholds_s = {1800};
+    cfg.departures = {25200, 28800};
+    cfg.max_changes = 1;
+
+    // Everything counts: B, C and D are all reachable from A within 30 minutes.
+    const auto all = compute_accessibility(tt, {0}, cfg);
+    EXPECT_DOUBLE_EQ(all.count(0, 1, 0), 3.0);
+
+    // Count only C and D — B is reachable but is not a destination here.
+    const auto some = compute_accessibility(tt, {0}, cfg, {2, 3});
+    EXPECT_DOUBLE_EQ(some.count(0, 1, 0), 2.0);
+    EXPECT_DOUBLE_EQ(some.count(0, 0, 0), 1.0) << "only C is reachable without changing";
+
+    // The origin never counts as its own destination, even when listed.
+    const auto with_origin = compute_accessibility(tt, {0}, cfg, {0, 2, 3});
+    EXPECT_DOUBLE_EQ(with_origin.count(0, 1, 0), 2.0);
+}
+
 // A budget that excludes everything is a real answer, not a bug: the surface
 // must report zero rather than falling back to a longer budget.
 TEST(Accessibility, ATightTimeBudgetReachesNothing)

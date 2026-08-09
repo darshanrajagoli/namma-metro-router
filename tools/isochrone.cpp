@@ -230,10 +230,14 @@ int main(int argc, char **argv)
         Raptor raptor(tt, std::max(max_changes + 2u, 4u));
         auto rr = raptor.run(origin, at_time);
 
+        // "at_most" is not pedantry: column `minutes_at_most_1_change` is the
+        // best journey using ONE change OR NONE, because tau is cumulative over
+        // rounds. Reading it as "journeys with exactly one change" would make
+        // every column look wrong against the one before it.
         std::ostringstream csv;
         csv << "node,stop_id,stop_name,lat,lon";
         for (uint32_t c = 0; c <= max_changes; ++c)
-            csv << ",minutes_with_" << c << "_changes";
+            csv << ",minutes_at_most_" << c << (c == 1 ? "_change" : "_changes");
         csv << ",penalty_minutes_if_no_changes\n";
 
         std::unordered_map<uint32_t, const StopRecord *> by_node;
@@ -338,54 +342,13 @@ int main(int argc, char **argv)
     cfg.thresholds_s = thresholds;
     cfg.max_changes = max_changes;
 
-    // Restrict the destination universe to station representatives by running on
-    // the full timetable and then counting only representatives. compute_
-    // accessibility counts every node, so a platform-separated feed would
-    // double-count; correct it by rebuilding the count here.
-    Raptor raptor(tt, std::max(max_changes + 2u, 4u));
-    RaptorResult rr;
-
-    AccessibilitySurface surface;
-    surface.config = cfg;
-    surface.num_stops = num_stops;
-    surface.num_thresholds = static_cast<uint32_t>(cfg.thresholds_s.size());
-    surface.num_budgets = max_changes + 1;
-    surface.per_origin.reserve(stations.size());
-
-    for (const uint32_t origin : stations)
-    {
-        StationAccessibility sa;
-        sa.node = origin;
-        sa.counts.assign(static_cast<std::size_t>(surface.num_budgets) * surface.num_thresholds, 0.0);
-        for (const uint32_t dep : cfg.departures)
-        {
-            raptor.run(origin, dep, rr);
-            bool any = false;
-            for (uint32_t c = 0; c <= max_changes; ++c)
-            {
-                const uint32_t round = std::min(c + 1u, rr.rounds);
-                for (const uint32_t v : stations)
-                {
-                    if (v == origin)
-                        continue;
-                    const uint32_t arr = rr.arrival(round, v);
-                    if (arr == RAPTOR_UNREACHED)
-                        continue;
-                    any = true;
-                    const uint32_t elapsed = arr - dep;
-                    for (uint32_t t = 0; t < surface.num_thresholds; ++t)
-                        if (elapsed <= cfg.thresholds_s[t])
-                            sa.counts[static_cast<std::size_t>(c) * surface.num_thresholds + t] += 1.0;
-                }
-            }
-            if (any)
-                ++sa.departures_with_service;
-        }
-        const double n = static_cast<double>(cfg.departures.size());
-        for (double &x : sa.counts)
-            x /= n;
-        surface.per_origin.push_back(std::move(sa));
-    }
+    // Origins AND destinations are station representatives, so a feed that keeps
+    // platforms separate does not count each platform of a station as somewhere
+    // else you can get to. This is the library function that
+    // tests/test_accessibility.cpp exercises — the tool must not carry its own
+    // copy of the loop, or the tests would be covering code nothing runs.
+    const AccessibilitySurface surface =
+        compute_accessibility(tt, stations, cfg, stations);
 
     // ── Report and write ─────────────────────────────────────────────────────
     std::unordered_map<uint32_t, const StopRecord *> by_node;
@@ -405,9 +368,28 @@ int main(int argc, char **argv)
         csv << ",gap_" << cfg.thresholds_s[t] << "s";
     csv << '\n';
 
-    // The headline threshold for the map: the middle one if there are three,
-    // else the last. 45 minutes is the conventional planning cut.
-    const uint32_t headline_t = surface.num_thresholds >= 3 ? 1u : surface.num_thresholds - 1;
+    // The headline threshold for the map and the summary: whichever supplied
+    // value is closest to 45 minutes, the conventional planning cut.
+    //
+    // Not "index 1", which is what this used to be. That happens to be 45
+    // minutes for the default 30/45/60 list and is silently something else for
+    // any other --thresholds, so the map's own subtitle would have named a
+    // number the map was not drawing.
+    uint32_t headline_t = 0;
+    {
+        constexpr uint32_t kPlanningCut = 2700; // 45 minutes
+        uint32_t best_gap = UINT32_MAX;
+        for (uint32_t t = 0; t < surface.num_thresholds; ++t)
+        {
+            const uint32_t v = cfg.thresholds_s[t];
+            const uint32_t gap = (v > kPlanningCut) ? (v - kPlanningCut) : (kPlanningCut - v);
+            if (gap < best_gap)
+            {
+                best_gap = gap;
+                headline_t = t;
+            }
+        }
+    }
 
     std::vector<double> values;
     values.reserve(placements.size());
@@ -458,14 +440,18 @@ int main(int argc, char **argv)
     if (!write_file(svg_path, render_station_map_svg(placements, sg.links, values, style)))
         return 1;
 
+    // Percentages are of the OTHER stations, not of all of them: an origin is
+    // not one of its own destinations, so the reachable maximum is n - 1.
     const double n_st = static_cast<double>(stations.size());
+    const double n_dest = (n_st > 1.0) ? (n_st - 1.0) : 1.0;
     std::printf("=== Accessibility surface (%zu departures across the day) ===\n",
                 cfg.departures.size());
-    std::printf("  at %u minutes, averaged over every station:\n", cfg.thresholds_s[headline_t] / 60);
-    std::printf("    reachable with 0 changes      : %.1f stations (%.1f%% of the network)\n",
-                sum_direct / n_st, 100.0 * sum_direct / n_st / n_st);
+    std::printf("  at %u minutes, averaged over every station, out of %.0f reachable others:\n",
+                cfg.thresholds_s[headline_t] / 60, n_dest);
+    std::printf("    reachable with 0 changes      : %.1f stations (%.1f%%)\n",
+                sum_direct / n_st, 100.0 * sum_direct / n_st / n_dest);
     std::printf("    reachable with up to %u changes: %.1f stations (%.1f%%)\n",
-                max_changes, sum_full / n_st, 100.0 * sum_full / n_st / n_st);
+                max_changes, sum_full / n_st, 100.0 * sum_full / n_st / n_dest);
     std::printf("    the gap                       : %.1f stations per origin\n",
                 (sum_full - sum_direct) / n_st);
     std::printf("\nwrote %s\nwrote %s\n", csv_path.c_str(), svg_path.c_str());

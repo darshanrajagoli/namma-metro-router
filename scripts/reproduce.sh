@@ -111,9 +111,16 @@ step "4/8  Multi-feed study"
 PIN_ARG=""
 [ -n "$PIN_CORE" ] && PIN_ARG="--pin-core $PIN_CORE"
 QUERIES=200
-[ "$QUICK" = 1 ] && QUERIES=60
+STUDY_ONLY=""
+if [ "$QUICK" = 1 ]; then
+  QUERIES=60
+  # --quick must narrow the STUDY too, not only the fetch. With --skip-fetch it
+  # would otherwise study every feed already on disk, which is the opposite of
+  # quick and makes the flag's documented runtime a lie.
+  STUDY_ONLY="--only $QUICK_FEEDS"
+fi
 python3 scripts/run_study.py --workdir feeds --build build \
-        --queries "$QUERIES" $PIN_ARG --out results/study-results.csv 2>&1 | tee -a "$LOG"
+        --queries "$QUERIES" $PIN_ARG $STUDY_ONLY --out results/study-results.csv 2>&1 | tee -a "$LOG"
 [ -s results/study-results.csv ] || die "study produced no results"
 
 # ── 5. Analysis ───────────────────────────────────────────────────────────────

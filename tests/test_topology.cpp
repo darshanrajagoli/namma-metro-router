@@ -271,10 +271,15 @@ TEST(Topology, HeadwayIsTheMedianGapInsideTheSamplingWindow)
     EXPECT_EQ(m.trips, 10u);
 }
 
-// Headway is measured per directed PLATFORM link. Two lines using DIFFERENT
-// platforms of the same station pair must not have their departures merged:
-// that is what made BART report a median headway of zero seconds.
-TEST(Topology, HeadwayIsNotHalvedByMergingSeparatePlatforms)
+// Headway is measured per directed PLATFORM link. Two services using DIFFERENT
+// platforms of the same station pair must not have their departures merged into
+// one sequence — the merged gaps are shorter than any train actually runs.
+//
+// This fixture is deliberately the worst case, two ten-minute services offset by
+// exactly five minutes, so the merge would halve the answer. On real feeds the
+// effect is smaller and still real: 660s against 600s on BART, 1980s against
+// 1800s on Boston.
+TEST(Topology, HeadwayIsNotDeflatedByMergingSeparatePlatforms)
 {
     auto idx = kIdx;
     // A/B are the two platforms of one station; C/D the two of another.

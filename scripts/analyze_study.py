@@ -37,8 +37,28 @@ run on a bare Python and the statistics here are a hundred lines.
 
 import argparse
 import csv
+import json
 import math
+import os
 import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+MANIFEST = os.path.join(HERE, "feeds.json")
+
+# Marks a feed whose timetable is MODELLED rather than published. Exactly one
+# entry qualifies today (Bengaluru), but the flag is derived from the manifest
+# rather than hard-coded, so adding another such feed cannot silently produce a
+# table that presents a synthetic timetable as an observed one.
+MODELLED_MARK = " *"
+
+
+def modelled_slugs():
+    try:
+        with open(MANIFEST, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+    except (OSError, ValueError):
+        return set()
+    return {e["slug"] for e in manifest.get("feeds", []) if e.get("builder")}
 
 # Structural columns to correlate against the trade-off rate, with a short
 # human description for the output table.
@@ -189,6 +209,13 @@ def main():
               and to_float(r.get("rt_reached")) not in (None, 0.0)]
     dropped = [r for r in rows if r not in usable]
 
+    modelled = modelled_slugs()
+
+    def name(row):
+        """Feed slug, marked when its timetable is modelled rather than published."""
+        slug = row.get("slug", "?")
+        return slug + MODELLED_MARK if slug in modelled else slug
+
     out = []
     e = out.append
     h1 = (lambda s: e("\n# " + s + "\n")) if args.markdown else \
@@ -212,6 +239,13 @@ def main():
 
     h1("When does multi-objective transit routing actually matter?")
     e(f"{len(usable)} feeds analysed, {len(dropped)} excluded, from `{args.csv}`.")
+    marked = sorted(s for s in modelled if any(r.get("slug") == s for r in usable))
+    if marked:
+        e("")
+        e(f"`{MODELLED_MARK.strip()}` marks a feed whose TIMETABLE is modelled rather than "
+          f"published — real station topology, synthesised departures. "
+          f"{', '.join(marked)}. Its structural metrics are as real as any other feed's; "
+          f"its headway, service span and latency figures are a property of the model.")
     if dropped:
         e("")
         e("Excluded:")
@@ -234,7 +268,7 @@ def main():
     ranked = sorted(usable, key=lambda r: -to_float(r[TARGET]))
     table(["feed", "stations", "links", "cyclomatic", "lines", "interchange density",
            "k>1", "mean k", "max k"],
-          [[r["slug"], r["stations"], r["links"], r["cyclomatic"], r["lines"],
+          [[name(r), r["stations"], r["links"], r["cyclomatic"], r["lines"],
             f"{to_float(r['interchange_density']):.3f}",
             f"{100 * to_float(r[TARGET]):.2f}%",
             f"{to_float(r['rt_mean_k']):.3f}", r["rt_max_k"]] for r in ranked])
@@ -287,7 +321,15 @@ def main():
            summarise(meshes, "has cycles (cyclomatic > 0)")])
     if forests:
         e("")
-        e("Forests: " + ", ".join(f"{r['slug']} ({100 * to_float(r[TARGET]):.2f}%)" for r in forests))
+        e("Forests: " + ", ".join(f"{name(r)} ({100 * to_float(r[TARGET]):.2f}%)" for r in forests))
+    zero_with_cycles = [r for r in meshes if to_float(r[TARGET]) == 0.0]
+    if zero_with_cycles:
+        e("")
+        e("Networks WITH cycles that still show no trade-off: " +
+          ", ".join(f"{name(r)} (cyclomatic {r['cyclomatic']})" for r in zero_with_cycles) + ".")
+        e("So the implication runs one way only: a forest guarantees no trade-off, "
+          "and cycles guarantee nothing. A cycle somewhere in a network is not the same "
+          "as a cycle a passenger's journey can use.")
 
     # ── 3b. The engine's own frontier against the exact one ───────────────────
     h2("Why the engine's own frontier is not an answer to the question")
@@ -313,7 +355,7 @@ def main():
         en = to_float(r.get("en_k2plus_frac"))
         if rt is None or en is None:
             continue
-        tr_rows.append([r["slug"], r.get("transfers", "-"),
+        tr_rows.append([name(r), r.get("transfers", "-"),
                         f"{100 * rt:.2f}%", f"{100 * en:.2f}%",
                         f"{100 * (en - rt):+.2f}pp"])
     if tr_rows:
@@ -335,15 +377,20 @@ def main():
     e("The Pareto engine expands one composite-optimal departure per link, chosen from the "
       "next k=5 departures within a 30-minute window. The column below is how often its "
       "earliest arrival is later than the exact one, with lambda set to 0 so that departure "
-      "selection is trying to minimise arrival and the window is the only thing in the way. "
-      "`unreached` counts destinations RAPTOR reaches and the engine does not at all.")
+      "selection is trying to minimise arrival and the window is the only thing in the way.")
+    e("")
+    e("`unreached` counts destinations RAPTOR reaches and the engine does not at all, and it "
+      "is NOT in the denominator of the percentage — that column answers \"when the engine "
+      "found a journey, how often was it the wrong one\". A feed can therefore show a small "
+      "percentage and a large `unreached`, which is a worse failure, not a better one. Read "
+      "the two together.")
     e("")
     gap_rows = []
     for r in sorted(usable, key=lambda r: -(to_float(r.get("ag_suboptimal_frac")) or 0.0)):
         sub = to_float(r.get("ag_suboptimal_frac"))
         if sub is None:
             continue
-        gap_rows.append([r["slug"], r.get("ag_compared", "-"),
+        gap_rows.append([name(r), r.get("ag_compared", "-"),
                          f"{100 * sub:.3f}%",
                          f"{to_float(r.get('ag_gap_mean_s')) or 0:.0f}s",
                          f"{to_float(r.get('ag_gap_p95_s')) or 0:.0f}s",
@@ -356,7 +403,7 @@ def main():
     bad = [r for r in usable if (to_float(r.get("ag_earlier")) or 0) > 0]
     if bad:
         e("")
-        e("**" + ", ".join(r["slug"] for r in bad) +
+        e("**" + ", ".join(name(r) for r in bad) +
           ": the engine reported an arrival EARLIER than the exact oracle. "
           "One of the two implementations is wrong and no number from those feeds is usable.**")
 
@@ -381,7 +428,7 @@ def main():
         ratio = to_float(r.get("t_ratio_p50"))
         if not ratio:
             continue
-        t_rows.append([r["slug"], r["nodes"], r["edges"],
+        t_rows.append([name(r), r["nodes"], r["edges"],
                        f"{(to_float(r['t_engine_p50']) or 0) / 1000:.1f}",
                        f"{(to_float(r['t_raptor_p50']) or 0) / 1000:.1f}",
                        f"{ratio:.2f}x",

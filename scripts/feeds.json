@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "description": "Feed manifest for the multi-feed trade-off study. Every entry is a published static GTFS feed reachable by anonymous HTTP at the time noted in `probed`. No credentials, no API keys, no scraping: a feed that needs an account is listed under `unavailable` with the reason, because a study you cannot re-run is not a study.",
+  "description": "Feed manifest for the multi-feed trade-off study. 37 entries are published static GTFS feeds reachable by anonymous HTTP at the time noted in `probed`; the 38th, `namma-metro`, is not a GTFS feed at all and carries a `builder` field — real station topology from an open dataset with a MODELLED timetable, because BMRCL publishes no open GTFS. No credentials, no API keys, no scraping: a feed that needs an account is listed under `unavailable` with the reason, because a study you cannot re-run is not a study.",
   "probed": "2026-08-08",
   "scope": "Rail modes only. scripts/prefilter_gtfs.py keeps GTFS route_type in {0,1,2,5,7,11,12} (tram, subway, rail, cable, funicular, monorail) and drops bus and ferry. The unit of comparison is a city's fixed-guideway network, so a regional feed contributes its rail layer and nothing else.",
   "licence_note": "Licences differ per agency and are NOT asserted here. Each entry carries `source_page`; check it before redistributing any feed. This pipeline downloads feeds at run time and does not vendor them into the repository.",

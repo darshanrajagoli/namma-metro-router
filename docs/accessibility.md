@@ -51,9 +51,16 @@ RAPTOR.
 ### One origin — an isochrone with a change budget
 
 ```bash
+mkdir -p results
 ./build/routing_engine_isochrone feeds/norm/namma-metro \
-    --origin NADP --at 08:00 --out-prefix results/majestic --labels
+    --origin KGWA --at 08:00 --out-prefix results/majestic --labels
 ```
+
+`--origin` takes a **`stop_id`**, not a station name. `KGWA` is Nadaprabhu
+Kempegowda (Majestic) in the feed `scripts/build_namma_metro_gtfs.py` produces;
+`cut -d, -f1,2 feeds/norm/<slug>/stops.txt` lists them. An id the feed does not
+contain is refused with a non-zero exit rather than silently routed from
+somewhere else.
 
 Writes `results/majestic-isochrone.csv` and `.svg`. For every station: the
 earliest arrival with 0 changes, with at most 1, with at most 2, and the column
@@ -64,6 +71,7 @@ all. The second is a stronger statement than any number.
 ### The whole network — a per-station score
 
 ```bash
+mkdir -p results
 ./build/routing_engine_isochrone feeds/norm/bart \
     --out-prefix results/accessibility-bart
 ```

@@ -390,27 +390,37 @@ namespace namma_metro
         // ── Verify the FIFO derivative bound on the graph we just produced ────
         // The interpolation argument says this cannot fail for scale <= 3600,
         // but the argument is about the continuous function and the graph holds
-        // sampled departures. Measure the realised slope between consecutive
-        // departures on the same link and report it.
+        // sampled departures. So measure it.
+        //
+        // Only CONSECUTIVE departures on a link are compared, and that is exact
+        // rather than an approximation: for three departures t1 < t2 < t3 on one
+        // link, the slope across (t1, t3) is a convex combination of the two
+        // consecutive slopes and therefore never more negative than both. The
+        // steepest fall is always attained by an adjacent pair. Checking every
+        // pair instead is quadratic in a node's out-degree, which on a national
+        // feed is tens of thousands of edges per node.
+        //
+        // GraphBuilder guarantees each node's edges are sorted by departure
+        // time, so "the previous departure to this destination" is one lookup.
+        std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> last_on_link;
         for (uint32_t u = 0; u < g.num_nodes; ++u)
         {
+            last_on_link.clear();
             const auto [begin, end] = g.edges_of(u);
-            for (const Edge *e1 = begin; e1 != end; ++e1)
+            for (const Edge *e = begin; e != end; ++e)
             {
-                for (const Edge *e2 = e1 + 1; e2 != end; ++e2)
+                const auto it = last_on_link.find(e->destination);
+                if (it != last_on_link.end())
                 {
-                    if (e1->destination != e2->destination)
-                        continue;
-                    const int64_t dt = static_cast<int64_t>(e2->departure_time) - static_cast<int64_t>(e1->departure_time);
-                    if (dt <= 0)
-                        continue;
-                    const int64_t dw = static_cast<int64_t>(e2->secondary_weight) - static_cast<int64_t>(e1->secondary_weight);
-                    if (dw < 0)
+                    const int64_t dt = static_cast<int64_t>(e->departure_time) - static_cast<int64_t>(it->second.first);
+                    const int64_t dw = static_cast<int64_t>(e->secondary_weight) - static_cast<int64_t>(it->second.second);
+                    if (dt > 0 && dw < 0)
                     {
                         const double slope = static_cast<double>(-dw) / static_cast<double>(dt);
                         rep.max_negative_slope = std::max(rep.max_negative_slope, slope);
                     }
                 }
+                last_on_link[e->destination] = {e->departure_time, e->secondary_weight};
             }
         }
         rep.fifo_bound_holds = (rep.max_negative_slope <= 1.0);

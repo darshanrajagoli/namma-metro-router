@@ -91,6 +91,22 @@ columns are labelled as machine-dependent everywhere they appear, and
 timed region so a reader can tell whether the comparison had any resolution at
 all on that host.
 
+That split is measured, not assumed. Run the study twice and diff everything
+except the timing block, which is columns 63–71 (`t_samples` through
+`t_ratio_p50`):
+
+```bash
+python3 scripts/run_study.py --workdir feeds --build build --pin-core 3 --out a.csv
+python3 scripts/run_study.py --workdir feeds --build build --pin-core 3 --out b.csv
+diff <(cut -d, -f1-62,72 a.csv) <(cut -d, -f1-62,72 b.csv) \
+  && echo "deterministic"
+```
+
+On this machine that produced **2,394 identical cells out of 2,394** — 38 feeds
+across the 63 non-timing columns. Over the same two sweeps the engine's p50 moved
+by a median of 4.2% and at most 19.3%. Anything quoted from the timing columns
+carries that error bar; nothing else does.
+
 ## Determinism, and where it was nearly lost
 
 Reproducibility is not only about inputs. Several places in this pipeline would
@@ -106,8 +122,10 @@ silently produce different answers run to run if left alone, and each is pinned:
 
 ## The feed manifest
 
-`scripts/feeds.json` lists 38 published static GTFS feeds reachable by anonymous
-HTTP, plus a second list of feeds that are **not** — with the reason. That second
+`scripts/feeds.json` lists 37 published static GTFS feeds reachable by anonymous
+HTTP, plus Bengaluru — which is not a GTFS feed but an open topology dataset
+with a modelled timetable, marked as such in every table — and a second list of
+feeds that are **not** reachable, with the reason. That second
 list is part of the artifact, not an omission: a reader can tell the difference
 between "this network was excluded" and "this network could not be obtained
 without an account".

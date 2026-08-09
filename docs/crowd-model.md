@@ -140,10 +140,14 @@ report. So:
 
 - the frontier should stay single-label, because the topology forbids anything
   else;
-- λ should now change the chosen **departure** differently at different
-  stations, which the time-only model could not do;
-- the crowd cost accumulated along a journey should become a real number that
-  differs between origins, which it previously could not.
+- λ should change the chosen **departure** far more often, because the model can
+  now tell two stations apart at the same instant and the time-only one could
+  not;
+- the accumulated crowd along a journey should stop being a function of hop
+  count and departure time alone. That third one is true by construction rather
+  than a prediction — the weight is read at the boarding station — but it is
+  worth stating, because it is the property the whole exercise is about and the
+  reason the second objective was inert before.
 
 If the first prediction fails, the tree argument is wrong — and that would be
 the more interesting outcome. Either way it is measured. The tool prints its own

@@ -91,10 +91,24 @@ relation is transitively closed. It is tempting to assume a generated
 ordered platform pair of a station, so the graph is *complete* within each
 station.
 
-**Complete is not closed.** BART's feed supplies real `min_transfer_time` values
-for some platform pairs and the normaliser defaults the rest, and at several
-stations the direct time between two platforms is longer than walking via a
-third. One pass then misses the cheaper two-leg walk.
+**Complete is not closed.** Two distinct things go wrong, and both were counted
+on the study's own normalised feeds rather than assumed:
+
+| feed | direct walk slower than the detour | pair missing entirely |
+|---|---|---|
+| BART | 6 ordered platform pairs | 0 |
+| Île-de-France | 24 | 0 |
+| Vancouver | 12 | 0 |
+| Netherlands | 0 | 1,198 |
+| Boston | 0 | 1 |
+
+The first column is BART's case: the feed supplies real `min_transfer_time`
+values for some platform pairs and the normaliser defaults the rest, so the
+direct time between two platforms can exceed the cost of going via a third. The
+second is the Netherlands' case: the feed marks some platform pairs
+`transfer_type = 3` ("not possible"), the normaliser drops those rows as it
+should, and what is left is a chain A → B → C with no A → C. Either way one
+relaxation pass misses the cheaper two-leg walk.
 
 This was not caught by reasoning about it. It was caught by
 `tools/study.cpp`'s correctness gate, which reported that the Pareto engine —
@@ -199,11 +213,13 @@ RAPTOR is **3.76× faster at p50** here, on 2.19× less memory. An unpinned reru
 of the same command minutes later gave 3.91× — which is the size of the machine
 noise these numbers carry, and the reason the sweep is pinned.
 
-**Across all 38 feeds** ([study.md](study.md)): faster on 34, median **2.91×**,
-range 0.05× to 27.92×. It is *slower* on four — Renfe, SNCF Intercités, Ireland
-and Metra — all sparse wide-area rail, where scanning a whole route to reach one
-marked stop costs more than a label-correcting search that settles a handful of
-labels and stops. That is the crossover this comparison existed to find.
+**Across all 38 feeds** ([study.md](study.md)): faster on **34**, median ratio
+**about 3×** (2.91–2.99× across repeat sweeps). It is *slower* on the same four
+every time — Renfe, SNCF Intercités, Ireland and Metra — all sparse wide-area
+rail, where scanning a whole route to reach one marked stop costs more than a
+label-correcting search that settles a handful of labels and stops. That is the
+crossover this comparison existed to find, and unlike the exact ratios it does
+not move between runs.
 
 As an oracle, across the whole sweep: **3,528,510 arrivals compared, zero cases
 of the engine beating it.** The bounded-wait lookahead cost nothing at all on 17

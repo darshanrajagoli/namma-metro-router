@@ -113,18 +113,34 @@ namespace namma_metro
     /**
      * @brief Compute the surface for every origin in @p origins.
      *
-     * @param tt       Prebuilt timetable.
-     * @param origins  Node indices to use as origins. Pass every served station
-     *                 for a whole-network surface, or one node for an isochrone.
-     * @param config   Thresholds, departures and change budget.
+     * @param tt           Prebuilt timetable.
+     * @param origins      Node indices to use as origins. Pass every served
+     *                     station for a whole-network surface, or one node for
+     *                     an isochrone.
+     * @param config       Thresholds, departures and change budget.
+     * @param destinations Nodes that COUNT as destinations. Empty means every
+     *                     stop in the timetable.
+     *
+     *                     Not decoration: on a feed that keeps platforms
+     *                     separate, counting every node would count each
+     *                     platform of a station as somewhere else you can get
+     *                     to, inflating every reachability number precisely at
+     *                     the interchanges this measure is about. Callers pass
+     *                     one representative per station.
      *
      * Cost is |origins| * |departures| RAPTOR queries. On a 100-station feed
      * with six departures that is 600 queries — well under a second.
+     *
+     * The round cap is deliberately ignored here. Layer k of a RAPTOR result
+     * depends only on layers below it, so every layer up to the cap is exact
+     * even when the search was still improving when it stopped — and this
+     * function never reads past `max_changes + 1`.
      */
     [[nodiscard]] AccessibilitySurface compute_accessibility(
         const RaptorTimetable &tt,
         const std::vector<uint32_t> &origins,
-        const AccessibilityConfig &config = {});
+        const AccessibilityConfig &config = {},
+        const std::vector<uint32_t> &destinations = {});
 
     // ═══════════════════════════════════════════════════════════════════════════
     // § 2.  Rendering

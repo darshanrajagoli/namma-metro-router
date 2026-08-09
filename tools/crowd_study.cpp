@@ -137,15 +137,20 @@ namespace
         uint64_t cmp = 0, diff_arr = 0, diff_crowd = 0;
         double sum_dt = 0.0, sum_dc = 0.0;
 
+        // Snapshot buffers, allocated once and refilled per query.
+        std::vector<std::pair<uint32_t, uint32_t>> ref_vals(g.num_nodes, {0, 0});
+        std::vector<uint8_t> ref_ok(g.num_nodes, 0);
+
         for (const auto &q : queries)
         {
             ref_router.run(q.src, q.dep, ref_out);
-            // Snapshot the reference by VALUE before the next run: the labels
-            // live in the router's arena and are freed at the start of the next
-            // query. Reading them afterwards is a dangling read that happens to
-            // work most of the time, which is the worst kind.
-            std::vector<std::pair<uint32_t, uint32_t>> ref_vals(g.num_nodes, {0, 0});
-            std::vector<uint8_t> ref_ok(g.num_nodes, 0);
+            // Snapshot the reference by VALUE rather than holding the Label*.
+            // Those pointers live in a router's arena and are invalidated by
+            // that router's next run(). It happens that the two arms use two
+            // routers with two arenas, so reading them later would work here —
+            // and that is exactly the kind of accidental safety that breaks the
+            // day someone merges the two loops. Copy the four bytes.
+            std::fill(ref_ok.begin(), ref_ok.end(), 0);
             for (uint32_t v = 0; v < g.num_nodes; ++v)
             {
                 const auto &L = ref_out.pareto_sets[v].labels();
