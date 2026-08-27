@@ -387,7 +387,7 @@ namma-metro-router/
 │   ├── routing.cpp          # Dijkstra engine  
 │   ├── benchmark.cpp        # TSC calibration + percentile computation
 │   └── main_bench.cpp       # Benchmark harness entry point
-├── tests/                   # Google Test suite (10 files, 85 tests)
+├── tests/                   # Google Test suite (15 files, 156 tests)
 ├── tools/                   # Measurement harnesses — see "Measured Behaviour"
 │   ├── diag.cpp             # Frontier-size distribution + lambda sensitivity
 │   ├── fifo_probe.cpp       # Does the FIFO violation fire on a real feed? (exact sweep)
@@ -538,8 +538,10 @@ The correctness-critical routines of the engine, each covered by dedicated unit 
 | Transfer CSR construction | `src/graph_builder.cpp` | Separate adjacency, FK-validated | `test_transfers.cpp` (12 cases) |
 | Engine vs brute-force oracle | `src/routing.cpp` | Independent correctness check | `test_pareto_oracle.cpp` |
 
-Run `ctest` from the build directory — all **85 tests** pass under AddressSanitizer +
-UndefinedBehaviorSanitizer.
+Run `ctest` from the build directory — all **156 tests** pass under AddressSanitizer +
+UndefinedBehaviorSanitizer. 85 of those cover the engine described above; the rest
+belong to the research artifacts, which are documented separately in
+[docs/research-artifacts.md](docs/research-artifacts.md).
 
 ---
 

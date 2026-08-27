@@ -78,6 +78,7 @@ add_library(namma_metro_core STATIC
   src/topology.cpp    # structural metrics of a network, for the multi-feed study
   src/crowd_model.cpp # station-load-scaled crowd weights from real ridership
   src/accessibility.cpp # reachability at each change budget, and the SVG renderer
+  src/interchange.cpp # ranks candidate new interchanges by what they measurably buy
 )
 target_include_directories(namma_metro_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
@@ -143,6 +144,13 @@ target_link_libraries(routing_engine_raptor_bench PRIVATE namma_metro_core)
 add_executable(routing_engine_isochrone tools/isochrone.cpp)
 target_link_libraries(routing_engine_isochrone PRIVATE namma_metro_core)
 
+# tools/interchange_search — the inverse of the accessibility surface. Instead of
+# measuring what the network gives its passengers, it asks where ONE new
+# interchange would give them the most, by building every walkable candidate and
+# measuring what each actually delivers.
+add_executable(routing_engine_interchange_search tools/interchange_search.cpp)
+target_link_libraries(routing_engine_interchange_search PRIVATE namma_metro_core)
+
 # tools/crowd_study — the original time-only crowd model against a crowd field
 # built from measured station-hourly ridership, on the same feed in one process.
 add_executable(routing_engine_crowd_study tools/crowd_study.cpp)
@@ -194,6 +202,7 @@ add_executable(namma_metro_tests
   tests/test_topology.cpp
   tests/test_crowd_model.cpp
   tests/test_accessibility.cpp
+  tests/test_interchange.cpp
 )
 target_link_libraries(namma_metro_tests
   PRIVATE
