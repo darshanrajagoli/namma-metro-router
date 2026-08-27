@@ -73,6 +73,7 @@ results/*.log
 # have no leading slash and therefore match at any depth, deliberately.
 _local/
 PRIVATE-*.md
+CLAUDE.md
 ANALYSIS.md
 WORKFLOW.md
 RESUME_PROMPT.md
