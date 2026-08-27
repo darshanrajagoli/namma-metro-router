@@ -67,6 +67,11 @@ results/*.md
 results/*.svg
 results/*.log
 
+# tools/risk_probe writes its sweep table beside wherever it is run from, and
+# unlike the other harnesses it needs no feed — so it is the one that gets run
+# casually, in the repository root, by anyone reading docs/risk.md.
+risk-probe-*.csv
+
 # Local-only working notes — never publish to the portfolio repo.
 # The whole local working area, plus the individual filenames, so that a file
 # stays ignored whether it sits at the top level or inside _local/. These names

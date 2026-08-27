@@ -253,6 +253,20 @@ Two further limits worth stating plainly:
 
 See `docs/write-up.tex` §4 for the formal statement of all three points.
 
+**The second of those has since been measured rather than left as future work.**
+Swapping the linear term for a per-edge CVaR does not work, and the reason is
+sharper than the proposal: a journey's arrival is not a sum of random costs, so
+per-edge risk is neither the objective nor a bound on it; and *no* scalar risk
+label can be accumulated at all, because the next-departure map is a step
+function, so `E[f(T)]` is not a function of `E[T]`. **The obstacle is
+scalarization, not coherence** — the mean fails identically. Pruning turns out to
+need an order strictly stronger than the objective it serves: ordering by CVaR at
+every confidence level at once is still unsafe, and first-order stochastic
+dominance is both sufficient and necessary, at about 40% more labels per node.
+Counterexamples, proofs and the measured cost are in
+[docs/risk.md](docs/risk.md); none of it changes a line of the engine, whose
+timetable is deterministic.
+
 ---
 
 ## Architecture
@@ -387,7 +401,7 @@ namma-metro-router/
 │   ├── routing.cpp          # Dijkstra engine  
 │   ├── benchmark.cpp        # TSC calibration + percentile computation
 │   └── main_bench.cpp       # Benchmark harness entry point
-├── tests/                   # Google Test suite (15 files, 156 tests)
+├── tests/                   # Google Test suite (16 files, 176 tests)
 ├── tools/                   # Measurement harnesses — see "Measured Behaviour"
 │   ├── diag.cpp             # Frontier-size distribution + lambda sensitivity
 │   ├── fifo_probe.cpp       # Does the FIFO violation fire on a real feed? (exact sweep)
@@ -538,7 +552,7 @@ The correctness-critical routines of the engine, each covered by dedicated unit 
 | Transfer CSR construction | `src/graph_builder.cpp` | Separate adjacency, FK-validated | `test_transfers.cpp` (12 cases) |
 | Engine vs brute-force oracle | `src/routing.cpp` | Independent correctness check | `test_pareto_oracle.cpp` |
 
-Run `ctest` from the build directory — all **156 tests** pass under AddressSanitizer +
+Run `ctest` from the build directory — all **176 tests** pass under AddressSanitizer +
 UndefinedBehaviorSanitizer. 85 of those cover the engine described above; the rest
 belong to the research artifacts, which are documented separately in
 [docs/research-artifacts.md](docs/research-artifacts.md).

@@ -79,6 +79,7 @@ add_library(namma_metro_core STATIC
   src/crowd_model.cpp # station-load-scaled crowd weights from real ridership
   src/accessibility.cpp # reachability at each change budget, and the SVG renderer
   src/interchange.cpp # ranks candidate new interchanges by what they measurably buy
+  src/risk.cpp        # the risk-objective probe: which dominance orders survive a timetable
 )
 target_include_directories(namma_metro_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
@@ -156,6 +157,15 @@ target_link_libraries(routing_engine_interchange_search PRIVATE namma_metro_core
 add_executable(routing_engine_crowd_study tools/crowd_study.cpp)
 target_link_libraries(routing_engine_crowd_study PRIVATE namma_metro_core)
 
+# tools/risk_probe — the one question that has to be answered before a risk-aware
+# router is worth building: the engine is fast because it throws labels away, and
+# a coherent risk measure does not accumulate along a path, so which orders can
+# still be pruned with? Prints the counterexamples, then measures what the safe
+# orders cost in frontier size. Reads no feed and needs no delay data: every
+# claim it makes is structural.
+add_executable(routing_engine_risk_probe tools/risk_probe.cpp)
+target_link_libraries(routing_engine_risk_probe PRIVATE namma_metro_core)
+
 option(BUILD_BASELINE "Build the heap-allocation A/B baseline binary" OFF)
 if(BUILD_BASELINE)
   add_executable(routing_engine_baseline
@@ -203,6 +213,7 @@ add_executable(namma_metro_tests
   tests/test_crowd_model.cpp
   tests/test_accessibility.cpp
   tests/test_interchange.cpp
+  tests/test_risk.cpp
 )
 target_link_libraries(namma_metro_tests
   PRIVATE

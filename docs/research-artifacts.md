@@ -1,6 +1,6 @@
 # The research artifacts
 
-Six pieces of work were added to this repository on top of the routing engine.
+Seven pieces of work were added to this repository on top of the routing engine.
 They are separate: separate sources, separate binaries, separate tests, separate
 documents. Each one answers a different question, and each can be read, run and
 judged on its own.
@@ -15,6 +15,7 @@ Start with [study.md](study.md). It is the one with a research question in it.
 | **4** | **A crowd model made of measurements.** BMRCL's station-hourly ridership, obtained under RTI, replacing a Gaussian that was constant across the whole city. | [crowd-model.md](crowd-model.md) | `routing_engine_crowd_study` |
 | **5** | **Accessibility surfaces.** The same query, presented as what it actually computes: what is reachable from here, by when, with how many changes — and the gap between those. | [accessibility.md](accessibility.md) | `routing_engine_isochrone` |
 | **6** | **Where should one new interchange go?** The inverse question: the engine as the inner loop of a search over network modifications, ranking every walkable connection the network does not already have by what it measurably buys. | [interchange.md](interchange.md) | `routing_engine_interchange_search` |
+| **7** | **Does dominance pruning survive a risk objective?** The engine is fast because it throws labels away, and a coherent risk measure does not accumulate along a path. Which orders can still be pruned with, what does the safe one cost, and where does it stop being safe? | [risk.md](risk.md) | `routing_engine_risk_probe` |
 
 ## How they fit together
 
@@ -30,7 +31,12 @@ nothing can. (3) is what makes any of it checkable by someone else. (6) turns (5
 you can measure trade-off structure you can ask what would change it, and the
 answer for Bengaluru — that no walkable interchange exists at all, the nearest
 unjoined pair being 1283 m apart and redundant with the interchange it would
-duplicate — is a sharper statement about the city than the surface alone.
+duplicate — is a sharper statement about the city than the surface alone. (7) is
+the only one that points forward rather than back. The other six measure what the
+engine does; it asks what the engine could not do — whether the dominance pruning
+all six are built on survives the risk objective the write-up says the problem
+really wants. It is also the only one that reads no feed, because its claims are
+about which orders survive a timetable and no dataset can settle that.
 
 ## New files
 
@@ -40,12 +46,14 @@ include/topology.hpp        src/topology.cpp          tests/test_topology.cpp
 include/crowd_model.hpp     src/crowd_model.cpp       tests/test_crowd_model.cpp
 include/accessibility.hpp   src/accessibility.cpp     tests/test_accessibility.cpp
 include/interchange.hpp     src/interchange.cpp       tests/test_interchange.cpp
+include/risk.hpp            src/risk.cpp              tests/test_risk.cpp
 
 tools/study.cpp             the multi-feed measurement, one feed in, one CSV row out
 tools/raptor_bench.cpp      the focused head-to-head, with a correctness gate
 tools/isochrone.cpp         accessibility surfaces, as CSV and self-contained SVG
 tools/crowd_study.cpp       the crowd-model A/B, both models in one process
 tools/interchange_search.cpp  rank candidate new interchanges by measured gain
+tools/risk_probe.cpp        which dominance orders survive a timetable, and what each costs
 
 scripts/feeds.json                  38 feeds, plus the ones that are unobtainable and why
 scripts/fetch_feeds.py              download, checksum-pin, prefilter, normalise
@@ -76,9 +84,9 @@ the code they were taken from.
 
 ## The test suite
 
-85 cases before, **156** after, all green under AddressSanitizer and UBSan.
+85 cases before, **176** after, all green under AddressSanitizer and UBSan.
 
-The 71 new ones are not coverage padding. The strongest of them,
+The 91 new ones are not coverage padding. The strongest of them,
 `RaptorVsEngine.UnrestrictedEngineAgreesExactlyOnEarliestArrival`, runs two
 unrelated algorithms over randomised networks and asserts they agree on every
 arrival at every node — which is worth more than any expectation written by
@@ -88,8 +96,15 @@ a headway deflated by merging two directions of one track, an "exact" oracle tha
 the engine beat, and a tool that carried its own copy of a library loop so the
 tests covered code nothing ran.
 
-The newest of them, `InterchangeSearch.AFootpathNeverReducesReachability`, pins an
-invariant rather than a number: adding a footpath can only ever add an option, and
-the transitive closure can only ever shorten a walk, so no proposed interchange may
-make any measure worse. A regression in the closure, the platform-to-station merge
-or the round accounting would show up there first.
+`InterchangeSearch.AFootpathNeverReducesReachability` pins an invariant rather
+than a number: adding a footpath can only ever add an option, and the transitive
+closure can only ever shorten a walk, so no proposed interchange may make any
+measure worse. A regression in the closure, the platform-to-station merge or the
+round accounting would show up there first.
+
+The newest twenty are a different kind again. Most of `tests/test_risk.cpp` is not
+coverage at all: it is the argument of `include/risk.hpp` written as assertions.
+One of them, `RiskProbe.StochasticDominanceIsNecessary`, takes every pair of
+arrival distributions the pruning order leaves unrelated and constructs a
+timetable that reverses them. A test that builds its own counterexamples is the
+closest this repository comes to a proof.

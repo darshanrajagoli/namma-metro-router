@@ -474,13 +474,55 @@ characterize the same tradeoff geometry without requiring structural isomorphism
     \end{enumerate}
 \end{remark}
 
-\begin{remark}[Practical Implication for the Engine]
+\begin{remark}[Practical Implication for the Engine --- corrected]
     The current implementation uses $\lambda \cdot \crowd$ as a linear proxy.
-    A more rigorous extension would replace this with the empirical CVaR
-    computed over historical AFC gate count distributions for each
-    (station, time-of-day, day-of-week) cell. This is left as future work
-    and noted here to demonstrate awareness of the Markowitz analogy's limits
-    to any reviewing quantitative researcher.
+    An earlier version of this remark proposed replacing it with an empirical
+    CVaR computed per edge and accumulated along the path, and left the matter
+    there as future work. \textbf{That substitution does not work, and the
+    reason is more interesting than the proposal.} It has since been measured;
+    see \texttt{docs/risk.md} and \texttt{include/risk.hpp}.
+
+    Three corrections, in increasing order of consequence.
+
+    \begin{enumerate}
+        \item \textbf{A per-edge CVaR summed along a path is neither the
+              journey's risk nor a bound on it.} Coherence gives
+              $\CVaR_\alpha[\sum_i X_i] \le \sum_i \CVaR_\alpha[X_i]$ for a sum
+              of random costs, but a journey's arrival is not such a sum: a
+              delay that causes a \emph{missed connection} costs a whole
+              headway rather than the delay. The proxy therefore under-states
+              the true risk, and by most of a headway in the measured witness.
+
+        \item \textbf{No scalar risk label can be accumulated at all.} Two
+              journeys can agree exactly on both mean arrival and CVaR and
+              disagree on both one leg later, so no accumulation rule of any
+              form --- additive or otherwise --- exists. This is strictly
+              stronger than the observation that CVaR is not additive, and it
+              does not depend on CVaR: the mean fails identically, because the
+              next-departure map is a step function of arrival, so
+              $\E[f(T)]$ is not a function of $\E[T]$. The obstacle is
+              \emph{scalarisation}, not coherence.
+
+        \item \textbf{Dominance pruning must use an order strictly stronger
+              than the objective it serves.} Ordering labels by CVaR at every
+              confidence level simultaneously --- which is equivalent to
+              carrying the whole distribution --- is still unsafe, because that
+              is the increasing convex order and a next-departure map is not
+              convex. Pruning by \emph{first-order stochastic dominance} is
+              safe when leg delays are independent of the prefix, and is exact
+              for every confidence level at once; it is also necessary, since
+              any pair the order leaves unrelated can be reversed by an ordinary
+              timetable. Under correlated delays --- a feeder and its connection
+              late on the same day --- the arrival distribution stops being a
+              sufficient statistic at all, and the safe order drops to
+              statewise dominance.
+    \end{enumerate}
+
+    Measured cost, on randomised instances against exhaustive enumeration:
+    stochastic dominance holds about $1.7$ labels per node against the unsafe
+    scalar rule's $1.2$, and that ratio barely responds to how finely the delay
+    distribution is resolved. Statewise dominance costs more and keeps growing
+    with the resolution, which is the open problem rather than the result.
 \end{remark}
 
 % ══════════════════════════════════════════════════════════════════════════
