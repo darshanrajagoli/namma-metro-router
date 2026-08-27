@@ -21,25 +21,41 @@ bash scripts/reproduce.sh --pin-core 3     # pin, for comparable latency numbers
 bash scripts/reproduce.sh --skip-fetch     # reuse an existing feeds/ directory
 ```
 
-Eight steps, each refusing to continue on a failure that would make the next one
+Ten steps, each refusing to continue on a failure that would make the next one
 meaningless:
 
 1. build, Release and Debug
 2. the test suite under AddressSanitizer and UBSan
-3. fetch, checksum-pin and normalise every feed in `scripts/feeds.json`
-4. the multi-feed study, one row per feed
-5. the analysis: rankings, correlations, the forest test, the head-to-head
-6. the focused RAPTOR comparison on one feed, with its correctness gate
-7. the crowd-model A/B against measured ridership
-8. the accessibility surfaces, as CSV and SVG
+3. the risk probe: which dominance orders survive a timetable — reads no feed
+4. fetch, checksum-pin and normalise every feed in `scripts/feeds.json`
+5. the multi-feed study, one row per feed
+6. the analysis: rankings, correlations, the forest test, the head-to-head
+7. the focused RAPTOR comparison on one feed, with its correctness gate
+8. the crowd-model A/B against measured ridership
+9. the accessibility surfaces, as CSV and SVG
+10. where one new interchange would pay most, on each feed that has candidates
 
 Everything lands in `results/`. Nothing is written outside `results/` and
 `feeds/`.
 
-**Step 2 comes before step 4 on purpose.** The study's headline numbers come
+**Step 2 comes before step 5 on purpose.** The study's headline numbers come
 from comparing two implementations against each other. If the tests are red, the
 comparison is between two unknown quantities and the study is worthless — so the
 tests gate the study rather than running afterwards as a formality.
+
+**Step 3 comes before step 4 on purpose too.** The risk probe is the one artifact
+that reads no feed at all, and step 4 is a several-gigabyte download of 38
+third-party feeds that agencies move without notice. Run last it would be out of
+reach of anyone offline or behind a failed fetch; run third, a reader with no
+network still reproduces one complete result. It costs seventeen seconds, and it
+is deliberately *not* shortened by `--quick`, because a different trial count
+would print numbers that no longer match the ones [risk.md](risk.md) quotes.
+
+**Step 10 is skipped for New York under `--quick`.** It is the only one of the
+three feeds with walkable candidates, and evaluating all 712 of them costs a full
+RAPTOR preprocess each — about five minutes single-threaded. Namma Metro and BART
+still run, including the stretched 2500 m radius that produces the Bengaluru
+result, because on those two the search is nearly instant.
 
 ## Why this matters more than it sounds
 

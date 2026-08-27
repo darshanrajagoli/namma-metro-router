@@ -12,20 +12,29 @@
 #
 #   1. build (Release and Debug)
 #   2. the test suite under AddressSanitizer and UBSan
-#   3. fetch and normalise every feed in scripts/feeds.json, pinning checksums
-#   4. the multi-feed study, one row per feed
-#   5. the analysis: rankings, correlations, the forest test, the head-to-head
-#   6. the focused RAPTOR comparison on one feed, with its correctness gate
-#   7. the crowd-model A/B against measured ridership
-#   8. the accessibility surface, as CSV and SVG
+#   3. the risk probe: which dominance orders survive a timetable — no feed
+#   4. fetch and normalise every feed in scripts/feeds.json, pinning checksums
+#   5. the multi-feed study, one row per feed
+#   6. the analysis: rankings, correlations, the forest test, the head-to-head
+#   7. the focused RAPTOR comparison on one feed, with its correctness gate
+#   8. the crowd-model A/B against measured ridership
+#   9. the accessibility surface, as CSV and SVG
+#  10. where one new interchange would pay most
 #
 # Outputs land in results/. Nothing is written outside results/ and feeds/.
 #
-# WHY STEP 2 COMES BEFORE STEP 4
+# WHY STEP 2 COMES BEFORE STEP 5
 # The study's headline numbers are produced by comparing two implementations
 # against each other. If the test suite is red, the comparison is between two
 # unknown quantities and the study is worthless. So the tests gate the study
 # rather than running after it as a formality.
+#
+# WHY STEP 3 COMES BEFORE STEP 4
+# It is the one artifact that reads no feed, and step 4 is a several-gigabyte
+# download of 38 third-party feeds that agencies move without notice. Run last,
+# it would be out of reach of anyone offline or behind a failed fetch. Run here,
+# a reader with no network still reproduces one complete result, and it costs
+# seventeen seconds to say so.
 
 set -uo pipefail
 
@@ -42,7 +51,11 @@ while [ $# -gt 0 ]; do
     --quick)      QUICK=1 ;;
     --skip-fetch) SKIP_FETCH=1 ;;
     --pin-core)   PIN_CORE="${2:-}"; shift ;;
-    -h|--help)    sed -n '2,30p' "$0"; exit 0 ;;
+    # Print the header block by finding where it ends rather than by line
+    # number: the previous fixed '2,30p' silently began truncating --help the
+    # moment the step list grew past it, which is the kind of breakage nothing
+    # reports.
+    -h|--help)    sed -n '2,/^$/p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -59,6 +72,19 @@ step()  { printf '\n\033[1m== %s ==\033[0m\n' "$*" | tee -a "$LOG"; }
 note()  { printf '%s\n' "$*" | tee -a "$LOG"; }
 die()   { printf '\n\033[31mFAILED: %s\033[0m\n' "$*" | tee -a "$LOG"; exit 1; }
 
+# Put an interchange run's ANSWER in the log, not just the name of the file it
+# went to. Two shapes to handle, and both are results: a ranked table when the
+# network has walkable candidates, and a flat refusal when it has none — which is
+# what Namma Metro and BART return, and what docs/interchange.md reports as a
+# property of those networks rather than as a run that found nothing.
+show_interchange() {
+  if grep -q '^=== Top' "$1" 2>/dev/null; then
+    sed -n '/^=== Top/,$p' "$1" | head -22 | tee -a "$LOG"
+  else
+    tail -8 "$1" | tee -a "$LOG"
+  fi
+}
+
 note "namma-metro-router — full reproduction"
 note "repository : $REPO"
 note "started    : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -68,7 +94,7 @@ note "python     : $(python3 --version)"
 [ "$QUICK" = 1 ] && note "mode       : QUICK (subset of feeds, fewer queries)"
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
-step "1/8  Build"
+step "1/10  Build"
 if [ ! -x build/routing_engine_study ]; then
   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -G Ninja >>"$LOG" 2>&1 \
     && cmake --build build -j"$(nproc)" >>"$LOG" 2>&1 \
@@ -82,15 +108,29 @@ fi
 note "ok"
 
 # ── 2. Tests ──────────────────────────────────────────────────────────────────
-step "2/8  Test suite (AddressSanitizer + UBSan)"
+step "2/10  Test suite (AddressSanitizer + UBSan)"
 if (cd build_debug && ctest --output-on-failure >>"$LOG" 2>&1); then
   note "$(grep -E '[0-9]+% tests passed' "$LOG" | tail -1)"
 else
   die "tests are red; nothing downstream would be trustworthy (see $LOG)"
 fi
 
-# ── 3. Feeds ──────────────────────────────────────────────────────────────────
-step "3/8  Transit feeds"
+# ── 3. Risk probe ─────────────────────────────────────────────────────────────
+step "3/10  Risk objective: which dominance orders survive a timetable"
+# Deliberately NOT reduced under --quick. It takes seventeen seconds at the
+# published settings, and running it at any other trial count would print numbers
+# that do not match the ones docs/risk.md quotes — which is most of the reason
+# for it being in here at all.
+if ./build/routing_engine_risk_probe --out-prefix results/risk-probe \
+      > results/risk-probe.txt 2>&1; then
+  sed -n '/^2\. HOW OFTEN/,/^3\. WHAT/p' results/risk-probe.txt | head -22 | tee -a "$LOG"
+  note "wrote results/risk-probe.txt and results/risk-probe-orders.csv"
+else
+  note "risk probe failed (see results/risk-probe.txt)"
+fi
+
+# ── 4. Feeds ──────────────────────────────────────────────────────────────────
+step "4/10  Transit feeds"
 if [ "$SKIP_FETCH" = 1 ]; then
   note "skipped (--skip-fetch); verifying what is already here"
   python3 scripts/fetch_feeds.py --workdir feeds --verify 2>&1 | tee -a "$LOG"
@@ -106,8 +146,8 @@ fi
 [ -d feeds/norm ] || die "no normalised feeds; cannot continue"
 note "normalised feeds: $(ls feeds/norm | wc -l)"
 
-# ── 4. The study ──────────────────────────────────────────────────────────────
-step "4/8  Multi-feed study"
+# ── 5. The study ──────────────────────────────────────────────────────────────
+step "5/10  Multi-feed study"
 PIN_ARG=""
 [ -n "$PIN_CORE" ] && PIN_ARG="--pin-core $PIN_CORE"
 QUERIES=200
@@ -123,15 +163,15 @@ python3 scripts/run_study.py --workdir feeds --build build \
         --queries "$QUERIES" $PIN_ARG $STUDY_ONLY --out results/study-results.csv 2>&1 | tee -a "$LOG"
 [ -s results/study-results.csv ] || die "study produced no results"
 
-# ── 5. Analysis ───────────────────────────────────────────────────────────────
-step "5/8  Analysis"
+# ── 6. Analysis ───────────────────────────────────────────────────────────────
+step "6/10  Analysis"
 python3 scripts/analyze_study.py results/study-results.csv --markdown \
         > results/study-results.md 2>>"$LOG" || die "analysis failed (see $LOG)"
 python3 scripts/analyze_study.py results/study-results.csv | tee -a "$LOG"
 note "wrote results/study-results.md"
 
-# ── 6. RAPTOR head to head ────────────────────────────────────────────────────
-step "6/8  RAPTOR vs the Pareto engine, one feed, with the correctness gate"
+# ── 7. RAPTOR head to head ────────────────────────────────────────────────────
+step "7/10  RAPTOR vs the Pareto engine, one feed, with the correctness gate"
 BENCH_FEED=feeds/norm/bart
 if [ -d "$BENCH_FEED" ]; then
   RUNNER=""
@@ -144,8 +184,8 @@ else
   note "skipped: $BENCH_FEED not present"
 fi
 
-# ── 7. Crowd model ────────────────────────────────────────────────────────────
-step "7/8  Crowd model: synthetic Gaussian vs measured ridership"
+# ── 8. Crowd model ────────────────────────────────────────────────────────────
+step "8/10  Crowd model: synthetic Gaussian vs measured ridership"
 if python3 scripts/fetch_ridership.py --out data-ridership >>"$LOG" 2>&1; then
   RIDERSHIP="data-ridership/station-hourly.csv"
   if [ -d feeds/norm/namma-metro ] && [ -f "$RIDERSHIP" ]; then
@@ -162,8 +202,8 @@ else
   note "skipped: ridership download failed (see $LOG)"
 fi
 
-# ── 8. Accessibility ──────────────────────────────────────────────────────────
-step "8/8  Accessibility surfaces"
+# ── 9. Accessibility ──────────────────────────────────────────────────────────
+step "9/10  Accessibility surfaces"
 for slug in namma-metro bart; do
   [ -d "feeds/norm/$slug" ] || continue
   ./build/routing_engine_isochrone "feeds/norm/$slug" \
@@ -172,6 +212,51 @@ for slug in namma-metro bart; do
     && note "wrote results/accessibility-$slug-surface.{csv,svg}" \
     || note "accessibility failed for $slug (see results/accessibility-$slug.txt)"
 done
+
+# ── 10. Interchange search ────────────────────────────────────────────────────
+step "10/10  Where one new interchange would pay most"
+# On Namma Metro and BART the 800 m planning radius returns no candidates at all,
+# and that null IS the published result — docs/interchange.md reports it as a
+# property of those networks rather than as a run that found nothing.
+for slug in namma-metro bart; do
+  [ -d "feeds/norm/$slug" ] || continue
+  note ""
+  note "-- $slug, 800 m --"
+  if ./build/routing_engine_interchange_search "feeds/norm/$slug" \
+        --out-prefix "results/interchange-$slug" --labels \
+        > "results/interchange-$slug.txt" 2>&1; then
+    show_interchange "results/interchange-$slug.txt"
+  else
+    note "interchange search failed for $slug (see results/interchange-$slug.txt)"
+  fi
+done
+# The Bengaluru finding is the stretched radius, not the null above: 91 candidates
+# at 2500 m, and not one of them improves reachability at 45 minutes.
+if [ -d feeds/norm/namma-metro ]; then
+  note ""
+  note "-- namma-metro, stretched to 2500 m (past any honest transfer walk) --"
+  if ./build/routing_engine_interchange_search feeds/norm/namma-metro \
+        --max-walk 2500 --top 15 --out-prefix results/interchange-namma-metro-2500 \
+        > results/interchange-namma-metro-2500.txt 2>&1; then
+    show_interchange "results/interchange-namma-metro-2500.txt"
+  else
+    note "stretched-radius search failed (see results/interchange-namma-metro-2500.txt)"
+  fi
+fi
+# New York is the only one of the three with walkable candidates, and where the
+# ranked table in docs/interchange.md comes from. 712 candidates, one full RAPTOR
+# preprocess each: about five minutes single-threaded, so --quick leaves it out.
+if [ "$QUICK" = 0 ] && [ -d feeds/norm/nyc-subway ]; then
+  note ""
+  note "-- nyc-subway, 800 m: 712 candidates, roughly five minutes single-threaded --"
+  if ./build/routing_engine_interchange_search feeds/norm/nyc-subway \
+        --top 15 --out-prefix results/interchange-nyc-subway --labels \
+        > results/interchange-nyc-subway.txt 2>&1; then
+    show_interchange "results/interchange-nyc-subway.txt"
+  else
+    note "interchange search failed for nyc-subway (see results/interchange-nyc-subway.txt)"
+  fi
+fi
 
 step "Done"
 note "finished   : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
