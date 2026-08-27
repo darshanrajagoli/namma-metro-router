@@ -67,7 +67,12 @@ results/*.md
 results/*.svg
 results/*.log
 
-# Local-only working notes — never publish to the portfolio repo
+# Local-only working notes — never publish to the portfolio repo.
+# The whole local working area, plus the individual filenames, so that a file
+# stays ignored whether it sits at the top level or inside _local/. These names
+# have no leading slash and therefore match at any depth, deliberately.
+_local/
+PRIVATE-*.md
 ANALYSIS.md
 WORKFLOW.md
 RESUME_PROMPT.md
